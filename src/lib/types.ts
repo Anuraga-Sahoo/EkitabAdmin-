@@ -40,13 +40,12 @@ export type QuizFormData = Omit<Quiz, '_id' | 'questions' | 'createdAt' | 'updat
   }>;
 };
 
-export type UserRole = 'Admin' | 'Editor' | 'Viewer';
-
 export type User = {
   _id: string; // from MongoDB, will be string after conversion
   name: string;
   email: string;
-  role: UserRole;
+  mobileNumber?: string; // Added mobileNumber, removed role
   joinedDate: Date | string; // Store as Date in DB, will be string after JSON serialization
   lastLogin?: Date | string; // Store as Date in DB, will be string after JSON serialization
 };
+

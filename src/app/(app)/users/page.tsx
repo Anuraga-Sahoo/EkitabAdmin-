@@ -95,13 +95,13 @@ export default function UsersPage() {
       toast({ title: "No Data", description: "There are no users to download.", variant: "destructive" });
       return;
     }
-    const headers = ['Name', 'Email', 'Role', 'Joined Date', 'Last Login'];
+    const headers = ['Name', 'Email', 'Mobile Number', 'Joined Date', 'Last Login'];
     const csvRows = [
       headers.join(','),
       ...users.map(user => [
         escapeCsvField(user.name),
         escapeCsvField(user.email),
-        escapeCsvField(user.role),
+        escapeCsvField(user.mobileNumber),
         escapeCsvField(user.joinedDate),
         escapeCsvField(user.lastLogin),
       ].join(','))
@@ -125,14 +125,14 @@ export default function UsersPage() {
       return;
     }
     const doc = new jsPDF();
-    const tableColumn = ["Name", "Email", "Role", "Joined Date", "Last Login"];
+    const tableColumn = ["Name", "Email", "Mobile Number", "Joined Date", "Last Login"];
     const tableRows: (string | null | undefined)[][] = [];
 
     users.forEach(user => {
       const userData = [
         user.name,
         user.email,
-        user.role,
+        user.mobileNumber || 'N/A',
         user.joinedDate ? new Date(user.joinedDate).toLocaleDateString() : 'N/A',
         user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A',
       ];
@@ -203,7 +203,7 @@ export default function UsersPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
+                  <TableHead>Mobile Number</TableHead>
                   <TableHead>Joined Date</TableHead>
                   <TableHead>Last Login</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -214,17 +214,7 @@ export default function UsersPage() {
                   <TableRow key={user._id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <span 
-                        className={`px-2 py-1 text-xs font-semibold rounded-full
-                          ${user.role === 'Admin' ? 'bg-primary/20 text-primary-foreground' : 
-                            user.role === 'Editor' ? 'bg-accent/20 text-accent-foreground' :
-                            'bg-secondary text-secondary-foreground'
-                          }`}
-                      >
-                        {user.role}
-                      </span>
-                    </TableCell>
+                    <TableCell>{user.mobileNumber || 'N/A'}</TableCell>
                     <TableCell>{new Date(user.joinedDate).toLocaleDateString()}</TableCell>
                     <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell className="text-right">
@@ -269,3 +259,4 @@ export default function UsersPage() {
     </div>
   );
 }
+
