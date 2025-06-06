@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,7 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Download, Users as UsersIcon, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input"; // Added
+import { Trash2, Download, Users as UsersIcon, Loader2, Search } from "lucide-react"; // Added Search
 import { useToast } from "@/hooks/use-toast";
 import type { User } from '@/lib/types';
 import jsPDF from 'jspdf';
@@ -28,6 +29,7 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(''); // Added
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,14 +93,14 @@ export default function UsersPage() {
   };
 
   const handleDownloadCSV = () => {
-    if (users.length === 0) {
-      toast({ title: "No Data", description: "There are no users to download.", variant: "destructive" });
+    if (filteredUsers.length === 0) { // Use filteredUsers
+      toast({ title: "No Data", description: "There are no users to download with the current filters.", variant: "destructive" });
       return;
     }
     const headers = ['Name', 'Email', 'Mobile Number', 'Joined Date', 'Last Login'];
     const csvRows = [
       headers.join(','),
-      ...users.map(user => [
+      ...filteredUsers.map(user => [ // Use filteredUsers
         escapeCsvField(user.name),
         escapeCsvField(user.email),
         escapeCsvField(user.mobileNumber),
@@ -120,15 +122,15 @@ export default function UsersPage() {
   };
 
   const handleDownloadPDF = () => {
-    if (users.length === 0) {
-      toast({ title: "No Data", description: "There are no users to download.", variant: "destructive" });
+    if (filteredUsers.length === 0) { // Use filteredUsers
+      toast({ title: "No Data", description: "There are no users to download with the current filters.", variant: "destructive" });
       return;
     }
     const doc = new jsPDF();
     const tableColumn = ["Name", "Email", "Mobile Number", "Joined Date", "Last Login"];
     const tableRows: (string | null | undefined)[][] = [];
 
-    users.forEach(user => {
+    filteredUsers.forEach(user => { // Use filteredUsers
       const userData = [
         user.name,
         user.email,
@@ -148,6 +150,18 @@ export default function UsersPage() {
     doc.save("user_list.pdf");
     toast({ title: "PDF Downloaded", description: "User list has been downloaded as PDF." });
   };
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return users;
+    }
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
+    return users.filter(user => {
+      const nameMatch = user.name.toLowerCase().includes(lowercasedSearchTerm);
+      const mobileMatch = user.mobileNumber?.includes(searchTerm); // Mobile search can be direct string includes
+      return nameMatch || mobileMatch;
+    });
+  }, [users, searchTerm]);
 
   if (isLoading) {
     return (
@@ -193,10 +207,24 @@ export default function UsersPage() {
         <CardHeader>
           <CardTitle className="font-headline">User List</CardTitle>
           <CardDescription>View and manage all registered users.</CardDescription>
+          <div className="mt-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by name or mobile..."
+                className="w-full rounded-lg bg-background pl-8 md:w-1/3"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {users.length === 0 ? (
-            <p className="text-center text-muted-foreground py-10">No users found in the database. You can add users directly to your MongoDB 'users' collection.</p>
+          {filteredUsers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-10">
+              {users.length === 0 ? "No users found in the database. You can add users directly to your MongoDB 'users' collection." : "No users match your search criteria."}
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -210,7 +238,7 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <TableRow key={user._id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -259,4 +287,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
