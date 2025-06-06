@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,9 +27,9 @@ const initialQuestionState: Omit<QuestionType, 'id' | 'options'> & { options: Ar
 
 export function QuizUploadForm() {
   const [quizTitle, setQuizTitle] = useState('');
-  const [testType, setTestType] = useState<'Previous Year' | 'Mock' | 'Practice Test' | undefined>(undefined);
-  const [classType, setClassType] = useState<'11th' | '12th' | undefined>(undefined);
-  const [subject, setSubject] = useState<'Physics' | 'Chemistry' | 'Biology' | undefined>(undefined);
+  const [testType, setTestType] = useState<'Previous Year' | 'Mock' | 'Practice Test' | ''>('');
+  const [classType, setClassType] = useState<'11th' | '12th' | ''>('');
+  const [subject, setSubject] = useState<'Physics' | 'Chemistry' | 'Biology' | ''>('');
   const [chapter, setChapter] = useState('');
   const [tags, setTags] = useState('');
   const [questions, setQuestions] = useState<(typeof initialQuestionState & { clientId: string })[]>([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
@@ -58,21 +59,22 @@ export function QuizUploadForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!quizTitle || !testType) { // Check state variable `testType` which can be ''
+      toast({ title: "Missing Fields", description: "Please fill in Quiz Title and Test Type.", variant: "destructive"});
+      return;
+    }
+
     const formData: QuizFormData = {
       title: quizTitle,
-      testType: testType!,
-      classType: classType,
-      subject: subject,
+      testType: testType, // `testType` is now guaranteed to be one of the valid enum values due to the check above
+      classType: classType ? classType : undefined, // Convert '' to undefined
+      subject: subject ? subject : undefined,     // Convert '' to undefined
       chapter: chapter,
       tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
       questions: questions.map(({clientId, ...qData}) => qData) // Strip client ID
     };
 
     // Basic validation
-    if (!formData.title || !formData.testType) {
-      toast({ title: "Missing Fields", description: "Please fill in Quiz Title and Test Type.", variant: "destructive"});
-      return;
-    }
     if (formData.questions.some(q => !q.text || q.options.length === 0 || q.options.every(opt => !opt.text))) {
       toast({ title: "Incomplete Questions", description: "Ensure all questions have text and at least one option with text.", variant: "destructive"});
       return;
@@ -108,7 +110,11 @@ export function QuizUploadForm() {
 
             <div className="space-y-2">
               <Label htmlFor="testType" className="font-semibold">Test Type</Label>
-              <Select value={testType} onValueChange={(value) => setTestType(value as any)} required>
+              <Select 
+                value={testType} 
+                onValueChange={(value) => setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test')} 
+                required
+              >
                 <SelectTrigger id="testType"><SelectValue placeholder="Select test type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Previous Year">Previous Year Test</SelectItem>
@@ -123,7 +129,7 @@ export function QuizUploadForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t mt-4">
               <div className="space-y-2">
                 <Label htmlFor="classType" className="font-semibold">Class</Label>
-                <Select value={classType} onValueChange={(value) => setClassType(value as any)}>
+                <Select value={classType} onValueChange={(value) => setClassType(value as '11th' | '12th')}>
                   <SelectTrigger id="classType"><SelectValue placeholder="Select class" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="11th">Class 11th</SelectItem>
@@ -133,7 +139,7 @@ export function QuizUploadForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject" className="font-semibold">Subject</Label>
-                <Select value={subject} onValueChange={(value) => setSubject(value as any)}>
+                <Select value={subject} onValueChange={(value) => setSubject(value as 'Physics' | 'Chemistry' | 'Biology')}>
                   <SelectTrigger id="subject"><SelectValue placeholder="Select subject" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Physics">Physics</SelectItem>
