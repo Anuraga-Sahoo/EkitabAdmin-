@@ -18,6 +18,8 @@ import {
 import { Trash2, Download, Users as UsersIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from '@/lib/types';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 
 export default function UsersPage() {
@@ -80,14 +82,71 @@ export default function UsersPage() {
     }
   };
 
+  const escapeCsvField = (field: string | undefined | null | Date): string => {
+    if (field === null || field === undefined) {
+      return '""';
+    }
+    const stringField = field instanceof Date ? field.toLocaleDateString() : String(field);
+    return `"${stringField.replace(/"/g, '""')}"`;
+  };
+
   const handleDownloadCSV = () => {
-    toast({ title: "Download CSV", description: "CSV download functionality is not yet implemented." });
-    console.log("Download CSV clicked. Data:", users);
+    if (users.length === 0) {
+      toast({ title: "No Data", description: "There are no users to download.", variant: "destructive" });
+      return;
+    }
+    const headers = ['Name', 'Email', 'Role', 'Joined Date', 'Last Login'];
+    const csvRows = [
+      headers.join(','),
+      ...users.map(user => [
+        escapeCsvField(user.name),
+        escapeCsvField(user.email),
+        escapeCsvField(user.role),
+        escapeCsvField(user.joinedDate),
+        escapeCsvField(user.lastLogin),
+      ].join(','))
+    ];
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'user_list.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "CSV Downloaded", description: "User list has been downloaded as CSV." });
   };
 
   const handleDownloadPDF = () => {
-    toast({ title: "Download PDF", description: "PDF download functionality is not yet implemented." });
-    console.log("Download PDF clicked. Data:", users);
+    if (users.length === 0) {
+      toast({ title: "No Data", description: "There are no users to download.", variant: "destructive" });
+      return;
+    }
+    const doc = new jsPDF();
+    const tableColumn = ["Name", "Email", "Role", "Joined Date", "Last Login"];
+    const tableRows: (string | null | undefined)[][] = [];
+
+    users.forEach(user => {
+      const userData = [
+        user.name,
+        user.email,
+        user.role,
+        user.joinedDate ? new Date(user.joinedDate).toLocaleDateString() : 'N/A',
+        user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A',
+      ];
+      tableRows.push(userData);
+    });
+
+    (doc as any).autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+    doc.text("User List", 14, 15);
+    doc.save("user_list.pdf");
+    toast({ title: "PDF Downloaded", description: "User list has been downloaded as PDF." });
   };
 
   if (isLoading) {
