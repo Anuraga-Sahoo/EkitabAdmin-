@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, type ChangeEvent, useEffect } from 'react';
@@ -98,7 +99,7 @@ export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps)
         </div>
       )}
       {preview && (
-        <Button onClick={handleGenerateTags} disabled={isTagging} size="sm" variant="outline" className="w-full">
+        <Button type="button" onClick={handleGenerateTags} disabled={isTagging} size="sm" variant="outline" className="w-full">
           {isTagging ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -120,3 +121,5 @@ export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps)
     </div>
   );
 }
+
+    

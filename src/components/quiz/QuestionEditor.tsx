@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -92,7 +93,7 @@ export function QuestionEditor({
           <CardTitle className="font-headline text-xl">Question {questionIndex + 1}</CardTitle>
           <CardDescription>Edit the question details, options, and explanation.</CardDescription>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => onRemoveQuestion(questionIndex)} aria-label="Remove question">
+        <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveQuestion(questionIndex)} aria-label="Remove question">
           <Trash2 className="h-5 w-5 text-destructive" />
         </Button>
       </CardHeader>
@@ -130,7 +131,7 @@ export function QuestionEditor({
                 <div className="flex items-center justify-between">
                   <Label htmlFor={`${editorId}-opt-text-${optIndex}`} className="font-medium">Option {optIndex + 1}</Label>
                   {options.length > 1 && (
-                    <Button variant="ghost" size="icon" onClick={() => removeOption(optIndex)} aria-label="Remove option">
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeOption(optIndex)} aria-label="Remove option">
                       <Trash2 className="h-4 w-4 text-destructive/70 hover:text-destructive" />
                     </Button>
                   )}
@@ -164,7 +165,7 @@ export function QuestionEditor({
             </Card>
           ))}
           {options.length < 5 && (
-            <Button variant="outline" size="sm" onClick={addOption} className="mt-2">
+            <Button type="button" variant="outline" size="sm" onClick={addOption} className="mt-2">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Option
             </Button>
           )}
@@ -186,3 +187,5 @@ export function QuestionEditor({
     </Card>
   );
 }
+
+    
