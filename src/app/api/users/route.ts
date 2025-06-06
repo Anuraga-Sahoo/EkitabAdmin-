@@ -7,14 +7,21 @@ import type { User } from '@/lib/types';
 export async function GET() {
   try {
     const { usersCollection } = await connectToDatabase();
-    const usersFromDb = await usersCollection.find({}).sort({ joinedDate: -1 }).toArray();
+    // Assuming user documents in MongoDB have a 'createdAt' field for the join date.
+    // Fetch users and sort by 'createdAt' in descending order.
+    const usersFromDb = await usersCollection.find({}).sort({ createdAt: -1 }).toArray();
 
-    const users: User[] = usersFromDb.map(userDoc => {
-      const { _id, ...rest } = userDoc;
+    const users: User[] = usersFromDb.map(doc => {
+      // Explicitly map fields from the database document to the User type.
+      // We are assuming 'doc' from the database has 'createdAt'.
       return {
-        _id: _id.toHexString(),
-        ...rest,
-      } as User; 
+        _id: doc._id.toHexString(),
+        name: doc.name,
+        email: doc.email,
+        mobileNumber: doc.mobileNumber, // This will be undefined if not in the doc
+        joinedDate: doc.createdAt, // Map 'createdAt' from DB to 'joinedDate' for the frontend User type
+        lastLogin: doc.lastLogin, // This will be undefined if not in the doc
+      };
     });
 
     return NextResponse.json(users, { status: 200 });
