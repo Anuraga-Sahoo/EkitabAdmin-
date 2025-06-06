@@ -12,14 +12,15 @@ export async function POST(request: NextRequest) {
     if (!quizData || !quizData.title || !quizData.testType || !quizData.questions || quizData.questions.length === 0) {
       return NextResponse.json({ message: 'Invalid quiz data provided.' }, { status: 400 });
     }
-    
+    if (quizData.timerMinutes !== undefined && (typeof quizData.timerMinutes !== 'number' || quizData.timerMinutes < 0)) {
+      return NextResponse.json({ message: 'Invalid timer value provided.' }, { status: 400 });
+    }
+
     const { quizzesCollection } = await connectToDatabase();
 
     // Transform QuizFormData to Quiz before insertion (add IDs)
     const quizToInsert = {
       ...quizData,
-      // No need to generate top-level ID, MongoDB will do it.
-      // But if you needed to, you'd do it here.
       questions: quizData.questions.map(q => ({
         ...q,
         id: new ObjectId().toHexString(), // Generate ID for each question
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
           id: new ObjectId().toHexString(), // Generate ID for each option
         })),
       })),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
 

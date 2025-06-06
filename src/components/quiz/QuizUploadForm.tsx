@@ -31,6 +31,7 @@ export function QuizUploadForm() {
   const [subject, setSubject] = useState<'Physics' | 'Chemistry' | 'Biology' | ''>('');
   const [chapter, setChapter] = useState('');
   const [tags, setTags] = useState('');
+  const [timerMinutes, setTimerMinutes] = useState<string>(''); // Added state for timer
   const [questions, setQuestions] = useState<(typeof initialQuestionState & { clientId: string })[]>([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,7 +47,7 @@ export function QuizUploadForm() {
     setQuestions((prevQuestions) =>
       prevQuestions.map((q, i) => (i === index ? { ...q, ...data } : q))
     );
-  }, []); 
+  }, []);
 
   const handleRemoveQuestion = useCallback((index: number) => {
     if (questions.length > 1) {
@@ -54,25 +55,34 @@ export function QuizUploadForm() {
     } else {
       toast({ title: "Cannot remove", description: "A quiz must have at least one question.", variant: "destructive" });
     }
-  }, [questions.length, toast]); 
+  }, [questions.length, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     if (!quizTitle || !testType) {
       toast({ title: "Missing Fields", description: "Please fill in Quiz Title and Test Type.", variant: "destructive"});
       setIsSubmitting(false);
       return;
     }
 
+    const parsedTimerMinutes = timerMinutes ? parseInt(timerMinutes, 10) : undefined;
+    if (timerMinutes && (isNaN(parsedTimerMinutes!) || parsedTimerMinutes! < 0)) {
+        toast({ title: "Invalid Timer", description: "Timer must be a non-negative number.", variant: "destructive"});
+        setIsSubmitting(false);
+        return;
+    }
+
+
     const formData: QuizFormData = {
       title: quizTitle,
-      testType: testType as 'Previous Year' | 'Mock' | 'Practice Test', // Assert as testType will be one of these by this point
+      testType: testType as 'Previous Year' | 'Mock' | 'Practice Test',
       classType: classType || undefined,
       subject: subject || undefined,
       chapter: chapter,
       tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      timerMinutes: parsedTimerMinutes,
       questions: questions.map(({clientId, ...qData}) => qData)
     };
 
@@ -110,6 +120,7 @@ export function QuizUploadForm() {
         setSubject('');
         setChapter('');
         setTags('');
+        setTimerMinutes(''); // Reset timer
         setQuestions([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
       } else {
         toast({
@@ -146,8 +157,8 @@ export function QuizUploadForm() {
 
             <div className="space-y-2">
               <Label htmlFor="testType" className="font-semibold">Test Type</Label>
-              <Select 
-                value={testType} 
+              <Select
+                value={testType}
                 onValueChange={(value) => setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test' | '')}
                 required
               >
@@ -193,13 +204,26 @@ export function QuizUploadForm() {
             </div>
           )}
 
-          <div className="space-y-2 pt-4 border-t mt-4">
-            <Label htmlFor="tags" className="font-semibold">Tags (comma-separated)</Label>
-            <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g., important, neet, jee (optional)" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="tags" className="font-semibold">Tags (comma-separated)</Label>
+              <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g., important, neet, jee (optional)" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="timerMinutes" className="font-semibold">Timer (minutes)</Label>
+              <Input
+                id="timerMinutes"
+                type="number"
+                value={timerMinutes}
+                onChange={(e) => setTimerMinutes(e.target.value)}
+                placeholder="e.g., 60 (optional)"
+                min="0"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
-      
+
       <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Questions</CardTitle>

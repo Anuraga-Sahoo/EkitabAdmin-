@@ -21,10 +21,11 @@ export type Quiz = {
   _id?: string; // MongoDB's default ID field, optional on creation
   title: string;
   testType: 'Previous Year' | 'Mock' | 'Practice Test';
-  classType?: '11th' | '12th'; 
+  classType?: '11th' | '12th';
   subject?: 'Physics' | 'Chemistry' | 'Biology';
   chapter?: string;
   tags?: string[];
+  timerMinutes?: number; // Added timer field
   questions: Question[];
   createdAt?: Date; // Optional: timestamp for when the quiz was created
   updatedAt?: Date; // Optional: timestamp for when the quiz was last updated
