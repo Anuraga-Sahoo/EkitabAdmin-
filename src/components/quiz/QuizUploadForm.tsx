@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { QuizFormData, Question as QuestionType, Option as OptionType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,39 +42,38 @@ export function QuizUploadForm() {
     setQuestions([...questions, { ...initialQuestionState, clientId: generateQuestionClientId() }]);
   };
 
-  const handleQuestionChange = (index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
+  const handleQuestionChange = useCallback((index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
     setQuestions((prevQuestions) =>
       prevQuestions.map((q, i) => (i === index ? { ...q, ...data } : q))
     );
-  };
+  }, []); // setQuestions is stable, so empty dependency array is fine.
 
-  const handleRemoveQuestion = (index: number) => {
+  const handleRemoveQuestion = useCallback((index: number) => {
     if (questions.length > 1) {
-      setQuestions(questions.filter((_, i) => i !== index));
+      setQuestions(prevQuestions => prevQuestions.filter((_, i) => i !== index));
     } else {
       toast({ title: "Cannot remove", description: "A quiz must have at least one question.", variant: "destructive" });
     }
-  };
+  }, [questions.length, toast]); // Depends on questions.length and toast
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!quizTitle || !testType) { // Check state variable `testType` which can be ''
+    if (!quizTitle || !testType) {
       toast({ title: "Missing Fields", description: "Please fill in Quiz Title and Test Type.", variant: "destructive"});
       return;
     }
 
     const formData: QuizFormData = {
       title: quizTitle,
-      testType: testType, // `testType` is now guaranteed to be one of the valid enum values due to the check above
-      classType: classType ? classType : undefined, // Convert '' to undefined
-      subject: subject ? subject : undefined,     // Convert '' to undefined
+      testType: testType,
+      classType: classType ? classType : undefined,
+      subject: subject ? subject : undefined,
       chapter: chapter,
       tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-      questions: questions.map(({clientId, ...qData}) => qData) // Strip client ID
+      questions: questions.map(({clientId, ...qData}) => qData)
     };
 
-    // Basic validation
     if (formData.questions.some(q => !q.text || q.options.length === 0 || q.options.every(opt => !opt.text))) {
       toast({ title: "Incomplete Questions", description: "Ensure all questions have text and at least one option with text.", variant: "destructive"});
       return;
@@ -84,10 +83,7 @@ export function QuizUploadForm() {
       return;
     }
 
-
     console.log('Quiz Data to Submit:', formData);
-    // Here you would typically send the data to your backend API
-    // e.g., await fetch('/api/quizzes', { method: 'POST', body: JSON.stringify(formData) });
     toast({
       title: 'Quiz Submitted (Simulated)',
       description: 'Quiz data has been prepared. Check console for output.',
@@ -112,8 +108,7 @@ export function QuizUploadForm() {
               <Label htmlFor="testType" className="font-semibold">Test Type</Label>
               <Select 
                 value={testType} 
-                onValueChange={(value) => setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test')} 
-                required
+                onValueChange={(value) => setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test' | '')}
               >
                 <SelectTrigger id="testType"><SelectValue placeholder="Select test type" /></SelectTrigger>
                 <SelectContent>
@@ -129,7 +124,7 @@ export function QuizUploadForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t mt-4">
               <div className="space-y-2">
                 <Label htmlFor="classType" className="font-semibold">Class</Label>
-                <Select value={classType} onValueChange={(value) => setClassType(value as '11th' | '12th')}>
+                <Select value={classType} onValueChange={(value) => setClassType(value as '11th' | '12th' | '')}>
                   <SelectTrigger id="classType"><SelectValue placeholder="Select class" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="11th">Class 11th</SelectItem>
@@ -139,7 +134,7 @@ export function QuizUploadForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject" className="font-semibold">Subject</Label>
-                <Select value={subject} onValueChange={(value) => setSubject(value as 'Physics' | 'Chemistry' | 'Biology')}>
+                <Select value={subject} onValueChange={(value) => setSubject(value as 'Physics' | 'Chemistry' | 'Biology' | '')}>
                   <SelectTrigger id="subject"><SelectValue placeholder="Select subject" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Physics">Physics</SelectItem>
@@ -182,7 +177,6 @@ export function QuizUploadForm() {
           </Button>
         </CardContent>
       </Card>
-
 
       <CardFooter className="flex flex-col md:flex-row justify-end gap-4 pt-8 border-t">
         <Button type="button" variant="outline" size="lg" className="w-full md:w-auto">
