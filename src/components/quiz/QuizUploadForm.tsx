@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { QuizFormData, Question as QuestionType, Option as OptionType } from '@/lib/types';
+import { useRouter } from 'next/navigation';
+import type { QuizFormData, Question as QuestionType, Option as OptionType, Quiz } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,18 +16,26 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 let nextQuestionId = 0;
 const generateQuestionClientId = () => `client-question-${nextQuestionId++}`;
+const generateOptionClientId = () => `client-option-${nextQuestionId++}`; // Separate counter for options if needed
 
-const initialQuestionState: Omit<QuestionType, 'id' | 'options'> & { options: Array<Omit<OptionType, 'id'>> } = {
+const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<Omit<OptionType, 'id' | 'aiTags'>>, aiTags?: string[] } = {
   text: '',
   imageUrl: undefined,
-  aiTags: [],
-  options: [{ text: '', imageUrl: undefined, isCorrect: false, aiTags: [] }],
+  options: [{ text: '', imageUrl: undefined, isCorrect: false }],
   explanation: '',
+  aiTags: [],
 };
 
-const NONE_VALUE = "_none_"; // Define a constant for the "None" value
+const NONE_VALUE = "_none_";
 
-export function QuizUploadForm() {
+interface QuizUploadFormProps {
+  initialQuizData?: Quiz | null;
+  quizId?: string;
+  onSuccessfulSubmit?: () => void;
+}
+
+export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: QuizUploadFormProps) {
+  const router = useRouter();
   const [quizTitle, setQuizTitle] = useState('');
   const [testType, setTestType] = useState<'Previous Year' | 'Mock' | 'Practice Test' | ''>('');
   const [classType, setClassType] = useState<'11th' | '12th' | typeof NONE_VALUE | ''>('');
@@ -34,20 +43,50 @@ export function QuizUploadForm() {
   const [chapter, setChapter] = useState('');
   const [tags, setTags] = useState('');
   const [timerMinutes, setTimerMinutes] = useState<string>('');
-  const [questions, setQuestions] = useState<(typeof initialQuestionState & { clientId: string })[]>([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
+  const [questions, setQuestions] = useState<(Omit<QuestionType, 'aiTags'> & { clientId: string; aiTags?: string[] })[]>([
+    { ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) },
+  ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { toast } = useToast();
+  const isEditMode = !!initialQuizData && !!quizId;
+
+  useEffect(() => {
+    if (isEditMode && initialQuizData) {
+      setQuizTitle(initialQuizData.title || '');
+      setTestType(initialQuizData.testType || '');
+      setClassType(initialQuizData.classType || NONE_VALUE);
+      setSubject(initialQuizData.subject || NONE_VALUE);
+      setChapter(initialQuizData.chapter || '');
+      setTags((initialQuizData.tags || []).join(', '));
+      setTimerMinutes(initialQuizData.timerMinutes?.toString() || '');
+      
+      const formQuestions = initialQuizData.questions.map(dbQuestion => ({
+        ...dbQuestion,
+        id: dbQuestion.id, // Preserve DB ID
+        clientId: dbQuestion.id || generateQuestionClientId(), // Use DB ID as clientId for existing, or generate for safety
+        aiTags: dbQuestion.aiTags || [],
+        options: dbQuestion.options.map(dbOption => ({
+          ...dbOption,
+          id: dbOption.id, // Preserve DB ID
+          aiTags: dbOption.aiTags || [],
+        })),
+      }));
+      setQuestions(formQuestions);
+    }
+  }, [initialQuizData, isEditMode]);
+
 
   const isPracticeTest = testType === 'Practice Test';
 
   const handleAddQuestion = () => {
-    setQuestions([...questions, { ...initialQuestionState, clientId: generateQuestionClientId() }]);
+    const newQuestionId = generateQuestionClientId();
+    setQuestions([...questions, { ...initialQuestionState, id: newQuestionId, clientId: newQuestionId, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]);
   };
 
   const handleQuestionChange = useCallback((index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
     setQuestions((prevQuestions) =>
-      prevQuestions.map((q, i) => (i === index ? { ...q, ...data } : q))
+      prevQuestions.map((q, i) => (i === index ? { ...q, ...data, id: q.id } : q)) // Ensure q.id is preserved
     );
   }, []);
 
@@ -79,7 +118,25 @@ export function QuizUploadForm() {
     const finalClassType = classType === NONE_VALUE || classType === '' ? undefined : classType;
     const finalSubject = subject === NONE_VALUE || subject === '' ? undefined : subject;
 
-    const formData: QuizFormData = {
+    // Prepare questions, stripping temporary clientId and ensuring options also strip their temporary clientIds
+    // if they were only used for local keying and not representing DB IDs.
+    // For edit mode, existing `id` fields from DB should be preserved.
+    const questionsForPayload = questions.map(({ clientId, ...qData }) => {
+        const { options, ...restOfQData } = qData;
+        return {
+            ...restOfQData, // This includes the original `id` if it was from the DB
+            id: qData.id, // Explicitly carry over the question's DB ID
+            options: options.map(opt => {
+                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { aiTags, ...restOfOpt } = opt; // Keep original option ID
+                return { ...restOfOpt, id: opt.id, aiTags: opt.aiTags || [] }; // Explicitly carry over option's DB ID
+            }),
+            aiTags: qData.aiTags || []
+        };
+    });
+
+
+    const formData: QuizFormData | Omit<Quiz, '_id' | 'createdAt' | 'updatedAt' | 'status'> = {
       title: quizTitle,
       testType: testType as 'Previous Year' | 'Mock' | 'Practice Test',
       classType: finalClassType as '11th' | '12th' | undefined,
@@ -87,9 +144,9 @@ export function QuizUploadForm() {
       chapter: chapter,
       tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
       timerMinutes: parsedTimerMinutes,
-      questions: questions.map(({clientId, ...qData}) => qData)
+      questions: questionsForPayload
     };
-
+    
     if (formData.questions.some(q => !q.text || q.options.length === 0 || q.options.every(opt => !opt.text))) {
       toast({ title: "Incomplete Questions", description: "Ensure all questions have text and at least one option with text.", variant: "destructive"});
       setIsSubmitting(false);
@@ -101,9 +158,12 @@ export function QuizUploadForm() {
       return;
     }
 
+    const endpoint = isEditMode ? `/api/quizzes/${quizId}` : '/api/quizzes';
+    const method = isEditMode ? 'PUT' : 'POST';
+
     try {
-      const response = await fetch('/api/quizzes', {
-        method: 'POST',
+      const response = await fetch(endpoint, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -113,22 +173,34 @@ export function QuizUploadForm() {
       const result = await response.json();
 
       if (response.ok) {
-        toast({
-          title: 'Quiz Saved!',
-          description: `Quiz "${formData.title}" has been successfully saved with ID: ${result.quizId}.`,
-        });
-        // Optionally reset form here
-        setQuizTitle('');
-        setTestType('');
-        setClassType('');
-        setSubject('');
-        setChapter('');
-        setTags('');
-        setTimerMinutes(''); 
-        setQuestions([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
+        if (isEditMode) {
+            if(onSuccessfulSubmit) {
+                onSuccessfulSubmit();
+            } else {
+                 toast({
+                    title: 'Quiz Updated!',
+                    description: `Quiz "${(formData as Quiz).title}" has been successfully updated.`,
+                });
+                router.push('/quizzes');
+            }
+        } else {
+            toast({
+                title: 'Quiz Saved!',
+                description: `Quiz "${formData.title}" has been successfully saved.`,
+            });
+            setQuizTitle('');
+            setTestType('');
+            setClassType(NONE_VALUE);
+            setSubject(NONE_VALUE);
+            setChapter('');
+            setTags('');
+            setTimerMinutes(''); 
+            const newQId = generateQuestionClientId();
+            setQuestions([{ ...initialQuestionState, id: newQId, clientId: newQId, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]);
+        }
       } else {
         toast({
-          title: 'Error Saving Quiz',
+          title: isEditMode ? 'Error Updating Quiz' : 'Error Saving Quiz',
           description: result.message || 'An unknown error occurred.',
           variant: 'destructive',
         });
@@ -149,8 +221,8 @@ export function QuizUploadForm() {
     <form onSubmit={handleSubmit} className="space-y-8">
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle className="font-headline text-2xl">Create New Quiz</CardTitle>
-          <CardDescription>Fill in the details below to create a new quiz.</CardDescription>
+          <CardTitle className="font-headline text-2xl">{isEditMode ? 'Edit Quiz' : 'Create New Quiz'}</CardTitle>
+          <CardDescription>{isEditMode ? `Editing quiz: ${initialQuizData?.title}` : 'Fill in the details below to create a new quiz.'}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -236,9 +308,9 @@ export function QuizUploadForm() {
         <CardContent>
           {questions.map((q, index) => (
             <QuestionEditor
-              key={q.clientId}
+              key={q.clientId} // Use clientId for React key, as DB id might not be unique if a question is duplicated before saving
               questionIndex={index}
-              questionData={q}
+              questionData={q} // Pass the whole question object, which includes DB `id` if present
               onQuestionChange={handleQuestionChange}
               onRemoveQuestion={handleRemoveQuestion}
             />
@@ -259,7 +331,7 @@ export function QuizUploadForm() {
           ) : (
             <Save className="mr-2 h-5 w-5" />
           )}
-          Save Quiz
+          {isEditMode ? 'Update Quiz' : 'Save Quiz'}
         </Button>
       </CardFooter>
     </form>

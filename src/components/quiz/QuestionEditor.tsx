@@ -15,14 +15,15 @@ import { Separator } from '@/components/ui/separator';
 
 interface QuestionEditorProps {
   questionIndex: number;
-  questionData: Partial<Omit<Question, 'id'>>; // Data for this question
+  questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string /* or clientId if new */}> };
   onQuestionChange: (index: number, data: Partial<Omit<Question, 'id'>>) => void;
   onRemoveQuestion: (index: number) => void;
 }
 
 // Helper to generate unique IDs for options client-side
-let nextOptionId = 0;
-const generateOptionId = () => `option-${nextOptionId++}`;
+let nextClientOptionId = 0;
+const generateClientOptionId = () => `client-option-${nextClientOptionId++}`;
+
 
 export function QuestionEditor({
   questionIndex,
@@ -33,30 +34,44 @@ export function QuestionEditor({
   const [questionText, setQuestionText] = useState(initialQuestionData.text || '');
   const [questionImageUrl, setQuestionImageUrl] = useState(initialQuestionData.imageUrl || '');
   const [questionAiTags, setQuestionAiTags] = useState(initialQuestionData.aiTags || []);
-  const [options, setOptions] = useState<(Partial<Option> & { clientId: string })[]>(
-    (initialQuestionData.options || [{ clientId: generateOptionId(), text: '', isCorrect: false }]).map(opt => ({ ...opt, clientId: opt.id || generateOptionId() }))
+  
+  // Options now expect `id` (which can be DB id or client-generated for new ones)
+  const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
+    (initialQuestionData.options || [{ id: generateClientOptionId(), text: '', isCorrect: false }]).map(opt => ({
+      ...opt,
+      id: opt.id || generateClientOptionId(), // Ensure every option has an ID (DB or client)
+      aiTags: opt.aiTags || []
+    }))
   );
   const [explanation, setExplanation] = useState(initialQuestionData.explanation || '');
   
-  // Unique ID for this question editor instance for child components
   const [editorId, setEditorId] = useState<string | null>(null);
   useEffect(() => {
-    setEditorId(`question-editor-${Math.random().toString(36).substring(2, 11)}`);
-  }, []);
+    setEditorId(`question-editor-${initialQuestionData.clientId || Math.random().toString(36).substring(2, 11)}`);
+  }, [initialQuestionData.clientId]);
 
 
   useEffect(() => {
-    const updatedQuestionData = {
+    // When reporting changes, we send data structure expected by QuizFormData (no clientIds)
+    // but preserve original DB IDs if they exist on questionData.id and option.id
+    const updatedQuestionData: Partial<Omit<Question, 'id'>> & { id?: string; options: Array<Partial<Omit<Option, 'id'>> & { id?: string }> } = {
+      id: initialQuestionData.id, // Preserve original question DB ID
       text: questionText,
       imageUrl: questionImageUrl,
       aiTags: questionAiTags,
-      options: options.map(({ clientId, ...optData }) => optData) as Option[], // Strip clientId before sending up
+      options: options.map(opt => ({
+        id: opt.id, // Preserve original option DB ID (or client-generated one if new)
+        text: opt.text,
+        imageUrl: opt.imageUrl,
+        isCorrect: opt.isCorrect,
+        aiTags: opt.aiTags,
+      })),
       explanation: explanation,
     };
     onQuestionChange(questionIndex, updatedQuestionData);
-  }, [questionText, questionImageUrl, questionAiTags, options, explanation, questionIndex, onQuestionChange]);
+  }, [questionText, questionImageUrl, questionAiTags, options, explanation, questionIndex, onQuestionChange, initialQuestionData.id]);
 
-  const handleOptionChange = (optionIndex: number, field: keyof Option, value: any) => {
+  const handleOptionChange = (optionIndex: number, field: keyof Omit<Option, 'id'>, value: any) => {
     setOptions((prevOptions) =>
       prevOptions.map((opt, i) =>
         i === optionIndex ? { ...opt, [field]: value } : opt
@@ -65,7 +80,7 @@ export function QuestionEditor({
   };
   
   const handleOptionImageUploaded = (optionIndex: number, dataUri: string, tags: string[]) => {
-    setOptions((prevOptions) =>
+     setOptions((prevOptions) =>
       prevOptions.map((opt, i) =>
         i === optionIndex ? { ...opt, imageUrl: dataUri, aiTags: tags } : opt
       )
@@ -74,7 +89,7 @@ export function QuestionEditor({
 
   const addOption = () => {
     if (options.length < 5) { // Max 5 options
-      setOptions([...options, { clientId: generateOptionId(), text: '', isCorrect: false }]);
+      setOptions([...options, { id: generateClientOptionId(), text: '', isCorrect: false, aiTags: [] }]);
     }
   };
 
@@ -126,7 +141,7 @@ export function QuestionEditor({
         <div>
           <h4 className="text-lg font-semibold mb-3 font-headline">Options</h4>
           {options.map((option, optIndex) => (
-            <Card key={option.clientId} className="mb-4 p-4 bg-card/50 shadow-sm">
+            <Card key={option.id} className="mb-4 p-4 bg-card/50 shadow-sm"> {/* Use option.id for key */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor={`${editorId}-opt-text-${optIndex}`} className="font-medium">Option {optIndex + 1}</Label>
@@ -187,5 +202,3 @@ export function QuestionEditor({
     </Card>
   );
 }
-
-    
