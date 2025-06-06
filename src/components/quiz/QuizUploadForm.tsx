@@ -24,14 +24,16 @@ const initialQuestionState: Omit<QuestionType, 'id' | 'options'> & { options: Ar
   explanation: '',
 };
 
+const NONE_VALUE = "_none_"; // Define a constant for the "None" value
+
 export function QuizUploadForm() {
   const [quizTitle, setQuizTitle] = useState('');
   const [testType, setTestType] = useState<'Previous Year' | 'Mock' | 'Practice Test' | ''>('');
-  const [classType, setClassType] = useState<'11th' | '12th' | ''>('');
-  const [subject, setSubject] = useState<'Physics' | 'Chemistry' | 'Biology' | ''>('');
+  const [classType, setClassType] = useState<'11th' | '12th' | typeof NONE_VALUE | ''>('');
+  const [subject, setSubject] = useState<'Physics' | 'Chemistry' | 'Biology' | typeof NONE_VALUE | ''>('');
   const [chapter, setChapter] = useState('');
   const [tags, setTags] = useState('');
-  const [timerMinutes, setTimerMinutes] = useState<string>(''); // Added state for timer
+  const [timerMinutes, setTimerMinutes] = useState<string>('');
   const [questions, setQuestions] = useState<(typeof initialQuestionState & { clientId: string })[]>([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,12 +76,14 @@ export function QuizUploadForm() {
         return;
     }
 
+    const finalClassType = classType === NONE_VALUE || classType === '' ? undefined : classType;
+    const finalSubject = subject === NONE_VALUE || subject === '' ? undefined : subject;
 
     const formData: QuizFormData = {
       title: quizTitle,
       testType: testType as 'Previous Year' | 'Mock' | 'Practice Test',
-      classType: classType || undefined,
-      subject: subject || undefined,
+      classType: finalClassType as '11th' | '12th' | undefined,
+      subject: finalSubject as 'Physics' | 'Chemistry' | 'Biology' | undefined,
       chapter: chapter,
       tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
       timerMinutes: parsedTimerMinutes,
@@ -120,7 +124,7 @@ export function QuizUploadForm() {
         setSubject('');
         setChapter('');
         setTags('');
-        setTimerMinutes(''); // Reset timer
+        setTimerMinutes(''); 
         setQuestions([{ ...initialQuestionState, clientId: generateQuestionClientId() }]);
       } else {
         toast({
@@ -176,10 +180,10 @@ export function QuizUploadForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t mt-4">
               <div className="space-y-2">
                 <Label htmlFor="classType" className="font-semibold">Class</Label>
-                <Select value={classType} onValueChange={(value) => setClassType(value as '11th' | '12th' | '')}>
+                <Select value={classType} onValueChange={(value) => setClassType(value as '11th' | '12th' | typeof NONE_VALUE | '')}>
                   <SelectTrigger id="classType"><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value={NONE_VALUE}>None</SelectItem>
                     <SelectItem value="11th">Class 11th</SelectItem>
                     <SelectItem value="12th">Class 12th</SelectItem>
                   </SelectContent>
@@ -187,10 +191,10 @@ export function QuizUploadForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject" className="font-semibold">Subject</Label>
-                <Select value={subject} onValueChange={(value) => setSubject(value as 'Physics' | 'Chemistry' | 'Biology' | '')}>
+                <Select value={subject} onValueChange={(value) => setSubject(value as 'Physics' | 'Chemistry' | 'Biology' | typeof NONE_VALUE | '')}>
                   <SelectTrigger id="subject"><SelectValue placeholder="Select subject (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value={NONE_VALUE}>None</SelectItem>
                     <SelectItem value="Physics">Physics</SelectItem>
                     <SelectItem value="Chemistry">Chemistry</SelectItem>
                     <SelectItem value="Biology">Biology</SelectItem>
