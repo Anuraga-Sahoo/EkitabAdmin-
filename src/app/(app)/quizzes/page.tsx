@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, ListFilter, Search, Edit, Trash2, Loader2 } from "lucide-react";
+import { PlusCircle, ListFilter, Search, Edit, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -18,8 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import type { Quiz } from '@/lib/types';
+import type { Quiz, QuizStatus } from '@/lib/types';
 
 export default function ManageQuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -28,6 +34,8 @@ export default function ManageQuizzesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({});
+
 
   const { toast } = useToast();
 
@@ -83,20 +91,52 @@ export default function ManageQuizzesPage() {
     }
   };
 
+  const handleStatusChange = async (quizId: string, newStatus: QuizStatus) => {
+    setIsUpdatingStatus(prev => ({ ...prev, [quizId]: true }));
+    try {
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update quiz status');
+      }
+
+      setQuizzes(prevQuizzes =>
+        prevQuizzes.map(q => (q._id === quizId ? { ...q, status: newStatus, updatedAt: new Date() } : q))
+      );
+      toast({ title: "Success", description: `Quiz status updated to "${newStatus}".` });
+    } catch (err) {
+      if (err instanceof Error) {
+        toast({ title: "Error updating status", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Error updating status", description: "An unknown error occurred.", variant: "destructive" });
+      }
+    } finally {
+      setIsUpdatingStatus(prev => ({ ...prev, [quizId]: false }));
+    }
+  };
+
   const filteredQuizzes = quizzes.filter(quiz =>
     quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     quiz.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     quiz.testType.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusColor = (status: Quiz['status']) => {
+  const getStatusClass = (status: QuizStatus) => {
     switch (status) {
-      case 'Published': return 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100';
-      case 'Draft': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700 dark:text-yellow-100';
-      case 'Private': return 'bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100';
-      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100';
+      case 'Published': return 'border-green-500 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-300 dark:hover:bg-green-900/50';
+      case 'Draft': return 'border-yellow-500 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-900/50';
+      case 'Private': return 'border-blue-500 text-blue-700 hover:bg-blue-50 dark:border-blue-600 dark:text-blue-300 dark:hover:bg-blue-900/50';
+      default: return 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50';
     }
   };
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -168,9 +208,31 @@ export default function ManageQuizzesPage() {
                     <TableCell>{quiz.subject || 'N/A'}</TableCell>
                     <TableCell className="text-center">{quiz.questions.length}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(quiz.status)}`}>
-                        {quiz.status}
-                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className={`w-[120px] justify-between capitalize ${getStatusClass(quiz.status)} ${isUpdatingStatus[quiz._id] ? 'opacity-70 cursor-not-allowed' : ''}`} 
+                            disabled={isUpdatingStatus[quiz._id]}
+                          >
+                            {isUpdatingStatus[quiz._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : quiz.status}
+                            {!isUpdatingStatus[quiz._id] && <ChevronDown className="ml-1 h-4 w-4 opacity-60" />}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-[120px]">
+                          {(['Published', 'Draft', 'Private'] as QuizStatus[]).map((statusOption) => (
+                            <DropdownMenuItem
+                              key={statusOption}
+                              disabled={quiz.status === statusOption || isUpdatingStatus[quiz._id]}
+                              onClick={() => handleStatusChange(quiz._id, statusOption)}
+                              className="capitalize"
+                            >
+                              {statusOption}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Link href={`/quizzes/edit/${quiz._id}`} passHref>
