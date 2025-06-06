@@ -2,7 +2,7 @@
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { QuizFormData } from '@/lib/types';
+import type { QuizFormData, Quiz } from '@/lib/types';
 import { ObjectId } from 'mongodb';
 
 export async function POST(request: NextRequest) {
@@ -18,23 +18,22 @@ export async function POST(request: NextRequest) {
 
     const { quizzesCollection } = await connectToDatabase();
 
-    // Transform QuizFormData to Quiz before insertion (add IDs)
     const quizToInsert = {
       ...quizData,
       questions: quizData.questions.map(q => ({
         ...q,
-        id: new ObjectId().toHexString(), // Generate ID for each question
+        id: new ObjectId().toHexString(),
         options: q.options.map(opt => ({
           ...opt,
-          id: new ObjectId().toHexString(), // Generate ID for each option
+          id: new ObjectId().toHexString(),
         })),
       })),
+      status: 'Draft', // Default status for new quizzes
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-
-    const result = await quizzesCollection.insertOne(quizToInsert as any); // Cast as any because MongoDB driver adds _id
+    const result = await quizzesCollection.insertOne(quizToInsert as any);
 
     if (result.insertedId) {
       return NextResponse.json({ message: 'Quiz created successfully', quizId: result.insertedId }, { status: 201 });
@@ -48,5 +47,30 @@ export async function POST(request: NextRequest) {
       errorMessage = error.message;
     }
     return NextResponse.json({ message: 'Failed to create quiz', error: errorMessage }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    const { quizzesCollection } = await connectToDatabase();
+    const quizzesFromDb = await quizzesCollection.find({}).sort({ createdAt: -1 }).toArray();
+
+    // Convert ObjectId to string for _id and ensure Quiz type compliance
+    const quizzes: Quiz[] = quizzesFromDb.map(quizDoc => {
+      const { _id, ...rest } = quizDoc;
+      return {
+        _id: _id.toHexString(),
+        ...rest,
+      } as Quiz; // Cast to Quiz after transformation
+    });
+
+    return NextResponse.json(quizzes, { status: 200 });
+  } catch (error) {
+    console.error('Failed to fetch quizzes:', error);
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ message: 'Failed to fetch quizzes', error: errorMessage }, { status: 500 });
   }
 }
