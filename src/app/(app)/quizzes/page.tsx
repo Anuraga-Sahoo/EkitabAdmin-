@@ -1,12 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, ListFilter, Search, Edit, Trash2, Loader2, ChevronDown } from "lucide-react";
+import { PlusCircle, ListFilter, Search, Edit, Trash2, Loader2, ChevronDown, X as XIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -23,9 +24,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import type { Quiz, QuizStatus } from '@/lib/types';
+
+const STATUS_OPTIONS: QuizStatus[] = ['Published', 'Draft', 'Private'];
+const TEST_TYPE_OPTIONS: Quiz['testType'][] = ['Practice Test', 'Mock', 'Previous Year'];
+const SUBJECT_OPTIONS: Extract<Quiz['subject'], string>[] = ['Physics', 'Chemistry', 'Biology'];
+
 
 export default function ManageQuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -36,6 +45,9 @@ export default function ManageQuizzesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({});
 
+  const [selectedStatuses, setSelectedStatuses] = useState<QuizStatus[]>([]);
+  const [selectedTestTypes, setSelectedTestTypes] = useState<Quiz['testType'][]>([]);
+  const [selectedSubjects, setSelectedSubjects] = useState<Extract<Quiz['subject'], string>[]>([]);
 
   const { toast } = useToast();
 
@@ -122,11 +134,60 @@ export default function ManageQuizzesPage() {
     }
   };
 
-  const filteredQuizzes = quizzes.filter(quiz =>
-    quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quiz.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quiz.testType.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleFilterChange = (category: 'status' | 'testType' | 'subject', value: string) => {
+    if (category === 'status') {
+      setSelectedStatuses(prev => 
+        prev.includes(value as QuizStatus) 
+          ? prev.filter(s => s !== value) 
+          : [...prev, value as QuizStatus]
+      );
+    } else if (category === 'testType') {
+      setSelectedTestTypes(prev => 
+        prev.includes(value as Quiz['testType']) 
+          ? prev.filter(t => t !== value) 
+          : [...prev, value as Quiz['testType']]
+      );
+    } else if (category === 'subject') {
+      setSelectedSubjects(prev => 
+        prev.includes(value as Extract<Quiz['subject'], string>) 
+          ? prev.filter(s => s !== value) 
+          : [...prev, value as Extract<Quiz['subject'], string>]
+      );
+    }
+  };
+
+  const removeFilter = (category: 'status' | 'testType' | 'subject', value: string) => {
+    if (category === 'status') {
+      setSelectedStatuses(prev => prev.filter(s => s !== value));
+    } else if (category === 'testType') {
+      setSelectedTestTypes(prev => prev.filter(t => t !== value));
+    } else if (category === 'subject') {
+      setSelectedSubjects(prev => prev.filter(s => s !== value));
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSelectedStatuses([]);
+    setSelectedTestTypes([]);
+    setSelectedSubjects([]);
+  };
+
+  const filteredQuizzes = useMemo(() => {
+    return quizzes.filter(quiz => {
+      const searchMatch = searchTerm === '' || 
+                          quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (quiz.subject && quiz.subject.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                          quiz.testType.toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!searchMatch) return false;
+
+      const statusMatch = selectedStatuses.length === 0 || selectedStatuses.includes(quiz.status);
+      const typeMatch = selectedTestTypes.length === 0 || selectedTestTypes.includes(quiz.testType);
+      const subjectMatch = selectedSubjects.length === 0 || (quiz.subject && selectedSubjects.includes(quiz.subject));
+      
+      return statusMatch && typeMatch && subjectMatch;
+    });
+  }, [quizzes, searchTerm, selectedStatuses, selectedTestTypes, selectedSubjects]);
 
   const getStatusClass = (status: QuizStatus) => {
     switch (status) {
@@ -137,6 +198,7 @@ export default function ManageQuizzesPage() {
     }
   };
 
+  const activeFiltersCount = selectedStatuses.length + selectedTestTypes.length + selectedSubjects.length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -164,11 +226,105 @@ export default function ManageQuizzesPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="sm" className="ml-auto flex h-8 gap-1">
-              <ListFilter className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only">Filter</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="ml-auto flex h-8 gap-1">
+                  <ListFilter className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only">Filter</span>
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 rounded-full px-1.5 py-0.5 text-xs">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                {STATUS_OPTIONS.map(status => (
+                  <DropdownMenuCheckboxItem
+                    key={status}
+                    checked={selectedStatuses.includes(status)}
+                    onCheckedChange={() => handleFilterChange('status', status)}
+                  >
+                    {status}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Filter by Test Type</DropdownMenuLabel>
+                {TEST_TYPE_OPTIONS.map(type => (
+                  <DropdownMenuCheckboxItem
+                    key={type}
+                    checked={selectedTestTypes.includes(type)}
+                    onCheckedChange={() => handleFilterChange('testType', type)}
+                  >
+                    {type}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
+                {SUBJECT_OPTIONS.map(subject => (
+                  <DropdownMenuCheckboxItem
+                    key={subject}
+                    checked={selectedSubjects.includes(subject)}
+                    onCheckedChange={() => handleFilterChange('subject', subject)}
+                  >
+                    {subject}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {activeFiltersCount > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={clearAllFilters} className="text-red-600 focus:bg-red-50 focus:text-red-700">
+                      Clear All Filters
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+          {activeFiltersCount > 0 && (
+            <div className="flex flex-wrap gap-2 pt-3">
+              {selectedStatuses.map(status => (
+                <Badge key={`status-${status}`} variant="secondary" className="flex items-center gap-1">
+                  Status: {status}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
+                    onClick={() => removeFilter('status', status)}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+              {selectedTestTypes.map(type => (
+                <Badge key={`type-${type}`} variant="secondary" className="flex items-center gap-1">
+                  Type: {type}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
+                    onClick={() => removeFilter('testType', type)}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+              {selectedSubjects.map(subject => (
+                <Badge key={`subject-${subject}`} variant="secondary" className="flex items-center gap-1">
+                  Subject: {subject}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
+                    onClick={() => removeFilter('subject', subject)}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -185,7 +341,7 @@ export default function ManageQuizzesPage() {
           )}
           {!isLoading && !error && filteredQuizzes.length === 0 && (
              <div className="text-center py-10 text-muted-foreground">
-              <p>{quizzes.length === 0 ? "No quizzes found. Create one to get started!" : "No quizzes match your search."}</p>
+              <p>{quizzes.length === 0 ? "No quizzes found. Create one to get started!" : "No quizzes match your search or filters."}</p>
             </div>
           )}
           {!isLoading && !error && filteredQuizzes.length > 0 && (
