@@ -17,63 +17,76 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Trash2, Download, Users as UsersIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { User } from '@/lib/types';
 
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Admin' | 'Editor' | 'Viewer';
-  joinedDate: string;
-  lastLogin: string;
-};
-
-// Mock user data - in a real app, this would come from an API
-const mockUsers: User[] = [
-  { id: '1', name: 'Alice Wonderland', email: 'alice@example.com', role: 'Admin', joinedDate: '2023-01-15', lastLogin: '2024-07-15' },
-  { id: '2', name: 'Bob The Builder', email: 'bob@example.com', role: 'Editor', joinedDate: '2023-02-20', lastLogin: '2024-07-14' },
-  { id: '3', name: 'Charlie Brown', email: 'charlie@example.com', role: 'Viewer', joinedDate: '2023-03-10', lastLogin: '2024-07-10' },
-  { id: '4', name: 'Diana Prince', email: 'diana@example.com', role: 'Editor', joinedDate: '2023-04-05', lastLogin: '2024-07-15' },
-  { id: '5', name: 'Edward Scissorhands', email: 'edward@example.com', role: 'Viewer', joinedDate: '2023-05-25', lastLogin: '2024-06-20' },
-];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate API call
-    setIsLoading(true);
-    setTimeout(() => {
-      setUsers(mockUsers);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    async function fetchUsers() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/users');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to fetch users: ${response.statusText}`);
+        }
+        const data: User[] = await response.json();
+        setUsers(data);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+          toast({ title: "Error fetching users", description: err.message, variant: "destructive" });
+        } else {
+          setError("An unknown error occurred");
+          toast({ title: "Error fetching users", description: "An unknown error occurred.", variant: "destructive" });
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchUsers();
+  }, [toast]);
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     setIsDeleting(true);
-    // Simulate API call for deletion
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
-    toast({ title: "User Deleted", description: `User "${userToDelete.name}" has been removed.` });
-    
-    setIsDeleting(false);
-    setUserToDelete(null);
+    try {
+      const response = await fetch(`/api/users/${userToDelete._id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete user');
+      }
+      setUsers(prevUsers => prevUsers.filter(u => u._id !== userToDelete._id));
+      toast({ title: "User Deleted", description: `User "${userToDelete.name}" has been removed.` });
+    } catch (err) {
+      if (err instanceof Error) {
+        toast({ title: "Error deleting user", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Error deleting user", description: "An unknown error occurred.", variant: "destructive" });
+      }
+    } finally {
+      setIsDeleting(false);
+      setUserToDelete(null);
+    }
   };
 
   const handleDownloadCSV = () => {
     toast({ title: "Download CSV", description: "CSV download functionality is not yet implemented." });
-    // In a real app, you would generate and trigger a CSV download here
     console.log("Download CSV clicked. Data:", users);
   };
 
   const handleDownloadPDF = () => {
     toast({ title: "Download PDF", description: "PDF download functionality is not yet implemented." });
-    // In a real app, you would generate and trigger a PDF download here
     console.log("Download PDF clicked. Data:", users);
   };
 
@@ -85,6 +98,21 @@ export default function UsersPage() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <Card className="max-w-2xl mx-auto my-8 shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-destructive font-headline">Error Loading Users</CardTitle>
+          <CardDescription>There was a problem fetching user data.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-destructive-foreground bg-destructive/10 p-4 rounded-md">{error}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -109,7 +137,7 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           {users.length === 0 ? (
-            <p className="text-center text-muted-foreground py-10">No users found.</p>
+            <p className="text-center text-muted-foreground py-10">No users found in the database. You can add users directly to your MongoDB 'users' collection.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -124,7 +152,7 @@ export default function UsersPage() {
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user._id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
@@ -139,7 +167,7 @@ export default function UsersPage() {
                       </span>
                     </TableCell>
                     <TableCell>{new Date(user.joinedDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(user.lastLogin).toLocaleDateString()}</TableCell>
+                    <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <Button 
                         variant="ghost" 
@@ -147,8 +175,9 @@ export default function UsersPage() {
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => setUserToDelete(user)}
                         aria-label="Delete user"
+                        disabled={isDeleting && userToDelete?._id === user._id}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {isDeleting && userToDelete?._id === user._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -28,7 +28,7 @@ export type Quiz = {
   tags?: string[];
   timerMinutes?: number;
   questions: Question[];
-  status: QuizStatus; // Added status field
+  status: QuizStatus;
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -38,4 +38,15 @@ export type QuizFormData = Omit<Quiz, '_id' | 'questions' | 'createdAt' | 'updat
   questions: Array<Omit<Question, 'id' | 'options'> & {
     options: Array<Omit<Option, 'id'>>;
   }>;
+};
+
+export type UserRole = 'Admin' | 'Editor' | 'Viewer';
+
+export type User = {
+  _id: string; // from MongoDB, will be string after conversion
+  name: string;
+  email: string;
+  role: UserRole;
+  joinedDate: Date | string; // Store as Date in DB, will be string after JSON serialization
+  lastLogin?: Date | string; // Store as Date in DB, will be string after JSON serialization
 };

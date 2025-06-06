@@ -1,7 +1,7 @@
 
 // src/lib/mongodb.ts
 import { MongoClient, Db, Collection } from 'mongodb';
-import type { Quiz } from './types';
+import type { Quiz, User } from './types';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'database'; // Default to 'database' if not set
@@ -32,9 +32,21 @@ if (process.env.NODE_ENV === 'development') {
   cachedDb = global.mongo.db;
 }
 
-export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db; quizzesCollection: Collection<Quiz> }> {
+interface DatabaseCollections {
+  client: MongoClient;
+  db: Db;
+  quizzesCollection: Collection<Quiz>;
+  usersCollection: Collection<Omit<User, '_id'>>; // In DB, _id is ObjectId
+}
+
+export async function connectToDatabase(): Promise<DatabaseCollections> {
   if (cachedClient && cachedDb) {
-    return { client: cachedClient, db: cachedDb, quizzesCollection: cachedDb.collection<Quiz>('quizzes') };
+    return { 
+      client: cachedClient, 
+      db: cachedDb, 
+      quizzesCollection: cachedDb.collection<Quiz>('quizzes'),
+      usersCollection: cachedDb.collection<Omit<User, '_id'>>('users')
+    };
   }
 
   const client = new MongoClient(MONGODB_URI!);
@@ -50,5 +62,6 @@ export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db
   }
   
   const quizzesCollection = db.collection<Quiz>('quizzes');
-  return { client, db, quizzesCollection };
+  const usersCollection = db.collection<Omit<User, '_id'>>('users');
+  return { client, db, quizzesCollection, usersCollection };
 }
