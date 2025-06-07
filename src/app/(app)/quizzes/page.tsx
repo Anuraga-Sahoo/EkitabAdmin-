@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import type { Quiz, QuizStatus } from '@/lib/types';
+import { format } from 'date-fns';
 
 const STATUS_OPTIONS: QuizStatus[] = ['Published', 'Draft', 'Private'];
 const TEST_TYPE_OPTIONS: Quiz['testType'][] = ['Practice Test', 'Mock', 'Previous Year'];
@@ -353,6 +354,7 @@ export default function ManageQuizzesPage() {
                   <TableHead>Subject</TableHead>
                   <TableHead className="text-center">Questions</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Last Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -389,6 +391,9 @@ export default function ManageQuizzesPage() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    </TableCell>
+                    <TableCell>
+                      {quiz.updatedAt ? format(new Date(quiz.updatedAt), 'PPp') : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Link href={`/quizzes/edit/${quiz._id}`} passHref>
