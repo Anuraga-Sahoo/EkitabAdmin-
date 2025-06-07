@@ -15,21 +15,18 @@ import { Separator } from '@/components/ui/separator';
 
 interface QuestionEditorProps {
   questionIndex: number;
-  questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string /* or clientId if new */}> };
+  questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string }> };
   onQuestionChange: (index: number, data: Partial<Omit<Question, 'id'>>) => void;
   onRemoveQuestion: (index: number) => void;
+  generateOptionId: () => string; // New prop for generating IDs for new options
 }
-
-// Helper to generate unique IDs for options client-side
-let nextClientOptionId = 0;
-const generateClientOptionId = () => `client-option-${nextClientOptionId++}`;
-
 
 export function QuestionEditor({
   questionIndex,
   questionData: initialQuestionData,
   onQuestionChange,
   onRemoveQuestion,
+  generateOptionId, // Destructure the new prop
 }: QuestionEditorProps) {
   const [questionText, setQuestionText] = useState(initialQuestionData.text || '');
   const [questionImageUrl, setQuestionImageUrl] = useState(initialQuestionData.imageUrl || '');
@@ -38,9 +35,10 @@ export function QuestionEditor({
   const [negativeMarks, setNegativeMarks] = useState<number>(initialQuestionData.negativeMarks === undefined ? 0 : initialQuestionData.negativeMarks);
   
   const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
-    (initialQuestionData.options || [{ id: generateClientOptionId(), text: '', isCorrect: false }]).map(opt => ({
-      ...opt,
-      id: opt.id || generateClientOptionId(),
+    // Directly use the options from props. QuizUploadForm is responsible for ensuring these options
+    // and their IDs are correctly initialized and unique.
+    initialQuestionData.options.map(opt => ({
+      ...opt, // opt.id is used directly.
       aiTags: opt.aiTags || []
     }))
   );
@@ -90,7 +88,7 @@ export function QuestionEditor({
 
   const addOption = () => {
     if (options.length < 5) { // Max 5 options
-      setOptions([...options, { id: generateClientOptionId(), text: '', isCorrect: false, aiTags: [] }]);
+      setOptions([...options, { id: generateOptionId(), text: '', isCorrect: false, aiTags: [] }]); // Use passed-in generator
     }
   };
 

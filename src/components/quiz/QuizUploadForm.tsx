@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -19,12 +20,12 @@ const generateQuestionClientId = () => `client-question-${nextQuestionSeed++}`;
 let nextOptionSeed = 0; 
 const generateOptionClientId = () => `client-option-${nextOptionSeed++}`;
 
-const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<Omit<OptionType, 'id' | 'aiTags'>>, aiTags?: string[] } = {
+const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<Omit<OptionType, 'aiTags'> & {id: string}>, aiTags?: string[] } = {
   text: '',
   imageUrl: undefined,
-  marks: 1, // Default marks
-  negativeMarks: 0, // Default negative marks
-  options: [{ text: '', imageUrl: undefined, isCorrect: false }],
+  marks: 1, 
+  negativeMarks: 0, 
+  options: [{ id: generateOptionClientId() , text: '', imageUrl: undefined, isCorrect: false }],
   explanation: '',
   aiTags: [],
 };
@@ -47,8 +48,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const [tags, setTags] = useState('');
   const [timerMinutes, setTimerMinutes] = useState<string>('');
   
-  const [questions, setQuestions] = useState<(Omit<QuestionType, 'aiTags'> & { clientId: string; aiTags?: string[] })[]>([
-    { ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) },
+  const [questions, setQuestions] = useState<(Omit<QuestionType, 'aiTags'> & { clientId: string; aiTags?: string[]; options: Array<Partial<OptionType> & { id: string }> })[]>([
+    { ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: o.id || generateOptionClientId()})) },
   ]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,8 +74,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         id: dbQuestion.id, 
         clientId: dbQuestion.id || generateQuestionClientId(), 
         aiTags: dbQuestion.aiTags || [],
-        marks: dbQuestion.marks || 1, // Populate marks
-        negativeMarks: dbQuestion.negativeMarks || 0, // Populate negativeMarks
+        marks: dbQuestion.marks === undefined ? 1 : dbQuestion.marks, 
+        negativeMarks: dbQuestion.negativeMarks === undefined ? 0 : dbQuestion.negativeMarks, 
         options: dbQuestion.options.map(dbOption => ({
           ...dbOption,
           id: dbOption.id || generateOptionClientId(), 
@@ -88,7 +89,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         ...initialQuestionState, 
         id: newQuestionGuid, 
         clientId: newQuestionGuid, 
-        options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) 
+        options: initialQuestionState.options.map(o => ({...o, id: o.id || generateOptionClientId()})) 
       }]);
     }
   }, [initialQuizData, isEditMode]);
@@ -116,7 +117,12 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
   const handleAddQuestion = () => {
     const newQuestionGuid = generateQuestionClientId();
-    setQuestions([...questions, { ...initialQuestionState, id: newQuestionGuid, clientId: newQuestionGuid, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]);
+    setQuestions([...questions, { 
+      ...initialQuestionState, 
+      id: newQuestionGuid, 
+      clientId: newQuestionGuid, 
+      options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) // Ensure new options get fresh unique IDs
+    }]);
   };
 
   const handleQuestionChange = useCallback((index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
@@ -188,8 +194,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         return {
             ...restOfQData, 
             id: qData.id, 
-            marks: (parsedMarks !== undefined && !isNaN(parsedMarks) && parsedMarks > 0) ? parsedMarks : 1, // Default to 1 if invalid
-            negativeMarks: (parsedNegativeMarks !== undefined && !isNaN(parsedNegativeMarks) && parsedNegativeMarks >= 0) ? parsedNegativeMarks : 0, // Default to 0 if invalid
+            marks: (parsedMarks !== undefined && !isNaN(parsedMarks) && parsedMarks > 0) ? parsedMarks : 1,
+            negativeMarks: (parsedNegativeMarks !== undefined && !isNaN(parsedNegativeMarks) && parsedNegativeMarks >= 0) ? parsedNegativeMarks : 0, 
             options: options.map(opt => {
                 return { ...opt, id: opt.id, aiTags: opt.aiTags || [] }; 
             }),
@@ -422,6 +428,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
               questionData={q} 
               onQuestionChange={handleQuestionChange}
               onRemoveQuestion={handleRemoveQuestion}
+              generateOptionId={generateOptionClientId} 
             />
           ))}
           <Button type="button" variant="outline" onClick={handleAddQuestion} className="mt-4 w-full md:w-auto" disabled={isSubmitting}>
