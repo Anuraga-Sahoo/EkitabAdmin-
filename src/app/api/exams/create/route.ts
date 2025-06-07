@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
     if (!examName) {
         return NextResponse.json({ message: `The provided exam name "${originalName}" is invalid. Please provide a valid name.` }, { status: 400 });
     }
+
+    // Convert examName to uppercase
+    examName = examName.toUpperCase();
     
     const { examsCollection } = await connectToDatabase();
 
@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
     const newExam: Omit<Exam, '_id'> = {
       name: examName,
       createdAt: new Date(),
+      quizIds: [], // Initialize with an empty array for quizIds
     };
 
     const result = await examsCollection.insertOne(newExam);
@@ -54,3 +58,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Failed to create exam', error: errorMessage }, { status: 500 });
   }
 }
+
