@@ -14,9 +14,11 @@ import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Save, Eye, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
-let nextQuestionId = 0;
-const generateQuestionClientId = () => `client-question-${nextQuestionId++}`;
-const generateOptionClientId = () => `client-option-${nextQuestionId++}`; // Separate counter for options if needed
+let nextQuestionSeed = 0;
+const generateQuestionClientId = () => `client-question-${nextQuestionSeed++}`;
+
+let nextOptionSeed = 0; // Dedicated counter for option client IDs
+const generateOptionClientId = () => `client-option-${nextOptionSeed++}`;
 
 const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<Omit<OptionType, 'id' | 'aiTags'>>, aiTags?: string[] } = {
   text: '',
@@ -72,13 +74,20 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         aiTags: dbQuestion.aiTags || [],
         options: dbQuestion.options.map(dbOption => ({
           ...dbOption,
-          id: dbOption.id, 
+          id: dbOption.id || generateOptionClientId(), // Ensure options always have an ID
           aiTags: dbOption.aiTags || [],
         })),
       }));
       setQuestions(formQuestions);
-      // Note: Pre-selecting exam for an existing quiz is not handled here yet.
-      // Would require fetching which exam this quizId belongs to, or storing examId on Quiz.
+    } else {
+      // Reset form for new quiz, ensuring initial question has uniquely ID'd options
+      const newQuestionGuid = generateQuestionClientId();
+      setQuestions([{ 
+        ...initialQuestionState, 
+        id: newQuestionGuid, 
+        clientId: newQuestionGuid, 
+        options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) 
+      }]);
     }
   }, [initialQuizData, isEditMode]);
 
@@ -104,8 +113,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const showExamDropdown = testType === 'Mock' || testType === 'Previous Year';
 
   const handleAddQuestion = () => {
-    const newQuestionId = generateQuestionClientId();
-    setQuestions([...questions, { ...initialQuestionState, id: newQuestionId, clientId: newQuestionId, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]);
+    const newQuestionGuid = generateQuestionClientId();
+    setQuestions([...questions, { ...initialQuestionState, id: newQuestionGuid, clientId: newQuestionGuid, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]);
   };
 
   const handleQuestionChange = useCallback((index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
@@ -175,8 +184,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
             ...restOfQData, 
             id: qData.id, 
             options: options.map(opt => {
-                const { aiTags, ...restOfOpt } = opt; 
-                return { ...restOfOpt, id: opt.id, aiTags: opt.aiTags || [] }; 
+                // const { aiTags, ...restOfOpt } = opt; // This was removing aiTags from payload
+                return { ...opt, id: opt.id, aiTags: opt.aiTags || [] }; 
             }),
             aiTags: qData.aiTags || []
         };
@@ -220,7 +229,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       const result = await response.json();
 
       if (response.ok) {
-        const savedQuizId = result.quizId || quizId; // Get quizId from response for new, or use existing for edit
+        const savedQuizId = result.quizId || quizId; 
 
         if (showExamDropdown && selectedExamId !== NONE_VALUE && savedQuizId) {
           await associateQuizWithExam(savedQuizId, selectedExamId);
@@ -292,7 +301,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 value={testType}
                 onValueChange={(value) => {
                   setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test' | '');
-                  if (value === 'Practice Test') setSelectedExamId(NONE_VALUE); // Reset exam if practice test
+                  if (value === 'Practice Test') setSelectedExamId(NONE_VALUE); 
                 }}
                 required
               >
@@ -419,3 +428,4 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     </form>
   );
 }
+
