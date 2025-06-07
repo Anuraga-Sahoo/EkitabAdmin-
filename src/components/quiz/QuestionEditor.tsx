@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ImageUploader } from './ImageUploader';
-import { PlusCircle, Trash2, ImageUp, Edit3 } from 'lucide-react';
+import { PlusCircle, Trash2, ImageUp, Edit3, HelpCircle, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -34,12 +34,13 @@ export function QuestionEditor({
   const [questionText, setQuestionText] = useState(initialQuestionData.text || '');
   const [questionImageUrl, setQuestionImageUrl] = useState(initialQuestionData.imageUrl || '');
   const [questionAiTags, setQuestionAiTags] = useState(initialQuestionData.aiTags || []);
+  const [marks, setMarks] = useState<number>(initialQuestionData.marks === undefined ? 1 : initialQuestionData.marks);
+  const [negativeMarks, setNegativeMarks] = useState<number>(initialQuestionData.negativeMarks === undefined ? 0 : initialQuestionData.negativeMarks);
   
-  // Options now expect `id` (which can be DB id or client-generated for new ones)
   const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
     (initialQuestionData.options || [{ id: generateClientOptionId(), text: '', isCorrect: false }]).map(opt => ({
       ...opt,
-      id: opt.id || generateClientOptionId(), // Ensure every option has an ID (DB or client)
+      id: opt.id || generateClientOptionId(),
       aiTags: opt.aiTags || []
     }))
   );
@@ -52,15 +53,15 @@ export function QuestionEditor({
 
 
   useEffect(() => {
-    // When reporting changes, we send data structure expected by QuizFormData (no clientIds)
-    // but preserve original DB IDs if they exist on questionData.id and option.id
     const updatedQuestionData: Partial<Omit<Question, 'id'>> & { id?: string; options: Array<Partial<Omit<Option, 'id'>> & { id?: string }> } = {
-      id: initialQuestionData.id, // Preserve original question DB ID
+      id: initialQuestionData.id, 
       text: questionText,
       imageUrl: questionImageUrl,
       aiTags: questionAiTags,
+      marks: marks,
+      negativeMarks: negativeMarks,
       options: options.map(opt => ({
-        id: opt.id, // Preserve original option DB ID (or client-generated one if new)
+        id: opt.id, 
         text: opt.text,
         imageUrl: opt.imageUrl,
         isCorrect: opt.isCorrect,
@@ -69,7 +70,7 @@ export function QuestionEditor({
       explanation: explanation,
     };
     onQuestionChange(questionIndex, updatedQuestionData);
-  }, [questionText, questionImageUrl, questionAiTags, options, explanation, questionIndex, onQuestionChange, initialQuestionData.id]);
+  }, [questionText, questionImageUrl, questionAiTags, marks, negativeMarks, options, explanation, questionIndex, onQuestionChange, initialQuestionData.id]);
 
   const handleOptionChange = (optionIndex: number, field: keyof Omit<Option, 'id'>, value: any) => {
     setOptions((prevOptions) =>
@@ -99,6 +100,16 @@ export function QuestionEditor({
     }
   };
 
+  const handleMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+    setMarks(value >= 0 ? value : 0);
+  };
+
+  const handleNegativeMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+    setNegativeMarks(value >= 0 ? value : 0);
+  };
+
   if (!editorId) return <div>Loading editor...</div>;
 
   return (
@@ -106,7 +117,7 @@ export function QuestionEditor({
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="font-headline text-xl">Question {questionIndex + 1}</CardTitle>
-          <CardDescription>Edit the question details, options, and explanation.</CardDescription>
+          <CardDescription>Edit the question details, options, scoring, and explanation.</CardDescription>
         </div>
         <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveQuestion(questionIndex)} aria-label="Remove question">
           <Trash2 className="h-5 w-5 text-destructive" />
@@ -136,12 +147,39 @@ export function QuestionEditor({
           {questionImageUrl && <p className="text-xs text-muted-foreground">Image selected for question.</p>}
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${editorId}-q-marks`} className="font-semibold flex items-center gap-2"><HelpCircle className="w-4 h-4" />Marks for Correct Answer</Label>
+            <Input
+              id={`${editorId}-q-marks`}
+              type="number"
+              value={marks}
+              onChange={handleMarksChange}
+              placeholder="e.g., 4"
+              min="0"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${editorId}-q-negative-marks`} className="font-semibold flex items-center gap-2"><TrendingDown className="w-4 h-4" />Marks for Incorrect Answer (Negative)</Label>
+            <Input
+              id={`${editorId}-q-negative-marks`}
+              type="number"
+              value={negativeMarks}
+              onChange={handleNegativeMarksChange}
+              placeholder="e.g., 1 (0 if no negative marking)"
+              min="0"
+            />
+             <p className="text-xs text-muted-foreground">Enter a positive value for deduction, e.g., '1' for -1. Defaults to 0.</p>
+          </div>
+        </div>
+
+
         <Separator />
 
         <div>
           <h4 className="text-lg font-semibold mb-3 font-headline">Options</h4>
           {options.map((option, optIndex) => (
-            <Card key={option.id} className="mb-4 p-4 bg-card/50 shadow-sm"> {/* Use option.id for key */}
+            <Card key={option.id} className="mb-4 p-4 bg-card/50 shadow-sm">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor={`${editorId}-opt-text-${optIndex}`} className="font-medium">Option {optIndex + 1}</Label>

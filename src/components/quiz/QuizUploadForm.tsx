@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,12 +16,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 let nextQuestionSeed = 0;
 const generateQuestionClientId = () => `client-question-${nextQuestionSeed++}`;
 
-let nextOptionSeed = 0; // Dedicated counter for option client IDs
+let nextOptionSeed = 0; 
 const generateOptionClientId = () => `client-option-${nextOptionSeed++}`;
 
 const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<Omit<OptionType, 'id' | 'aiTags'>>, aiTags?: string[] } = {
   text: '',
   imageUrl: undefined,
+  marks: 1, // Default marks
+  negativeMarks: 0, // Default negative marks
   options: [{ text: '', imageUrl: undefined, isCorrect: false }],
   explanation: '',
   aiTags: [],
@@ -32,7 +33,7 @@ const NONE_VALUE = "_none_";
 
 interface QuizUploadFormProps {
   initialQuizData?: Quiz | null;
-  quizId?: string; // DB ID of the quiz if editing
+  quizId?: string; 
   onSuccessfulSubmit?: () => void;
 }
 
@@ -72,15 +73,16 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         id: dbQuestion.id, 
         clientId: dbQuestion.id || generateQuestionClientId(), 
         aiTags: dbQuestion.aiTags || [],
+        marks: dbQuestion.marks || 1, // Populate marks
+        negativeMarks: dbQuestion.negativeMarks || 0, // Populate negativeMarks
         options: dbQuestion.options.map(dbOption => ({
           ...dbOption,
-          id: dbOption.id || generateOptionClientId(), // Ensure options always have an ID
+          id: dbOption.id || generateOptionClientId(), 
           aiTags: dbOption.aiTags || [],
         })),
       }));
       setQuestions(formQuestions);
     } else {
-      // Reset form for new quiz, ensuring initial question has uniquely ID'd options
       const newQuestionGuid = generateQuestionClientId();
       setQuestions([{ 
         ...initialQuestionState, 
@@ -180,11 +182,15 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
     const questionsForPayload = questions.map(({ clientId, ...qData }) => {
         const { options, ...restOfQData } = qData;
+        const parsedMarks = typeof restOfQData.marks === 'string' ? parseInt(restOfQData.marks, 10) : restOfQData.marks;
+        const parsedNegativeMarks = typeof restOfQData.negativeMarks === 'string' ? parseInt(restOfQData.negativeMarks, 10) : restOfQData.negativeMarks;
+
         return {
             ...restOfQData, 
             id: qData.id, 
+            marks: (parsedMarks !== undefined && !isNaN(parsedMarks) && parsedMarks > 0) ? parsedMarks : 1, // Default to 1 if invalid
+            negativeMarks: (parsedNegativeMarks !== undefined && !isNaN(parsedNegativeMarks) && parsedNegativeMarks >= 0) ? parsedNegativeMarks : 0, // Default to 0 if invalid
             options: options.map(opt => {
-                // const { aiTags, ...restOfOpt } = opt; // This was removing aiTags from payload
                 return { ...opt, id: opt.id, aiTags: opt.aiTags || [] }; 
             }),
             aiTags: qData.aiTags || []
@@ -203,16 +209,29 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       questions: questionsForPayload
     };
     
-    if (formData.questions.some(q => !q.text || q.options.length === 0 || q.options.every(opt => !opt.text))) {
-      toast({ title: "Incomplete Questions", description: "Ensure all questions have text and at least one option with text.", variant: "destructive"});
-      setIsSubmitting(false);
-      return;
+    for (const q of formData.questions) {
+        if (!q.text || q.options.length === 0 || q.options.every(opt => !opt.text)) {
+            toast({ title: "Incomplete Questions", description: "Ensure all questions have text and at least one option with text.", variant: "destructive"});
+            setIsSubmitting(false);
+            return;
+        }
+        if (!q.options.some(opt => opt.isCorrect)) {
+            toast({ title: "No Correct Answer", description: "Each question must have at least one correct answer selected.", variant: "destructive"});
+            setIsSubmitting(false);
+            return;
+        }
+        if (q.marks <= 0) {
+            toast({ title: "Invalid Marks", description: `Marks for Question "${q.text.substring(0,20)}..." must be a positive number.`, variant: "destructive"});
+            setIsSubmitting(false);
+            return;
+        }
+        if (q.negativeMarks === undefined || q.negativeMarks < 0) {
+             toast({ title: "Invalid Negative Marks", description: `Negative marks for Question "${q.text.substring(0,20)}..." must be a non-negative number.`, variant: "destructive"});
+            setIsSubmitting(false);
+            return;
+        }
     }
-    if (formData.questions.some(q => !q.options.some(opt => opt.isCorrect))) {
-       toast({ title: "No Correct Answer", description: "Each question must have at least one correct answer selected.", variant: "destructive"});
-       setIsSubmitting(false);
-      return;
-    }
+
 
     const endpoint = isEditMode ? `/api/quizzes/${quizId}` : '/api/quizzes';
     const method = isEditMode ? 'PUT' : 'POST';
@@ -250,7 +269,6 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 title: 'Quiz Saved!',
                 description: `Quiz "${formData.title}" has been successfully saved.`,
             });
-            // Reset form for new quiz creation
             setQuizTitle('');
             setTestType('');
             setClassType(NONE_VALUE);
@@ -428,4 +446,3 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     </form>
   );
 }
-

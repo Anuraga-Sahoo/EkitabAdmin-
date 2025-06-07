@@ -1,8 +1,7 @@
-
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { QuizFormData, Quiz } from '@/lib/types';
+import type { QuizFormData, Quiz, Question } from '@/lib/types';
 import { ObjectId } from 'mongodb';
 
 export async function POST(request: NextRequest) {
@@ -16,6 +15,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Invalid timer value provided.' }, { status: 400 });
     }
 
+    for (const q of quizData.questions) {
+        if (q.marks === undefined || q.marks <= 0) {
+            return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." must have positive marks.` }, { status: 400 });
+        }
+        if (q.negativeMarks !== undefined && q.negativeMarks < 0) {
+            return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." negative marks must be non-negative.` }, { status: 400 });
+        }
+    }
+
     const { quizzesCollection } = await connectToDatabase();
 
     const quizToInsert = {
@@ -23,12 +31,14 @@ export async function POST(request: NextRequest) {
       questions: quizData.questions.map(q => ({
         ...q,
         id: new ObjectId().toHexString(),
+        marks: q.marks, // Ensure marks are included
+        negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, // Default negativeMarks to 0
         options: q.options.map(opt => ({
           ...opt,
           id: new ObjectId().toHexString(),
         })),
       })),
-      status: 'Draft', // Default status for new quizzes
+      status: 'Draft', 
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -55,13 +65,18 @@ export async function GET() {
     const { quizzesCollection } = await connectToDatabase();
     const quizzesFromDb = await quizzesCollection.find({}).sort({ createdAt: -1 }).toArray();
 
-    // Convert ObjectId to string for _id and ensure Quiz type compliance
     const quizzes: Quiz[] = quizzesFromDb.map(quizDoc => {
       const { _id, ...rest } = quizDoc;
       return {
         _id: _id.toHexString(),
         ...rest,
-      } as Quiz; // Cast to Quiz after transformation
+        // Ensure questions have marks and negativeMarks, defaulting if necessary
+        questions: (rest.questions as Question[] || []).map(q => ({
+            ...q,
+            marks: q.marks === undefined ? 1 : q.marks,
+            negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks,
+        })),
+      } as Quiz; 
     });
 
     return NextResponse.json(quizzes, { status: 200 });

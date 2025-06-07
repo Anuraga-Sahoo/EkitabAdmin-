@@ -14,6 +14,8 @@ export type Question = {
   aiTags?: string[];
   options: Option[];
   explanation?: string;
+  marks: number; // Marks for correct answer
+  negativeMarks?: number; // Marks to deduct for wrong answer, defaults to 0
 };
 
 export type QuizStatus = 'Published' | 'Draft' | 'Private';
@@ -55,6 +57,4 @@ export type Exam = {
   name: string;
   createdAt: Date;
   updatedAt?: Date;
-  quizIds?: string[]; // Array of Quiz IDs associated with this exam
-};
-
+  quizIds?: string[]; // Array of Quiz IDs associated
