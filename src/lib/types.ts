@@ -54,6 +54,7 @@ export type Exam = {
   _id: string; // MongoDB's default ID field
   name: string;
   createdAt: Date;
+  updatedAt?: Date;
   quizIds?: string[]; // Array of Quiz IDs associated with this exam
 };
 
