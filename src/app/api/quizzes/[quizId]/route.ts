@@ -35,8 +35,8 @@ export async function GET(
       questions: (quizDoc.questions as Question[] || []).map(q => ({
         ...q,
         id: q.id || new ObjectId().toHexString(), 
-        marks: q.marks === undefined ? 1 : q.marks, // Default marks if not present
-        negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, // Default negative marks if not present
+        marks: q.marks === undefined ? 1 : q.marks, 
+        negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, 
         options: q.options.map(o => ({
             ...o,
             id: o.id || new ObjectId().toHexString() 
@@ -101,10 +101,10 @@ export async function PUT(
     }
 
     for (const q of quizData.questions) {
-        if (q.marks === undefined || q.marks <= 0) {
+        if (q.marks === undefined || typeof q.marks !== 'number' || q.marks <= 0) {
              return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." must have positive marks.` }, { status: 400 });
         }
-        if (q.negativeMarks !== undefined && q.negativeMarks < 0) {
+        if (q.negativeMarks !== undefined && (typeof q.negativeMarks !== 'number' || q.negativeMarks < 0)) {
             return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." negative marks must be non-negative.` }, { status: 400 });
         }
     }
@@ -167,4 +167,12 @@ export async function DELETE(
     } else {
       return NextResponse.json({ message: 'Quiz not found or already deleted' }, { status: 404 });
     }
-  } catch (error)
+  } catch (error) {
+    console.error('Failed to delete quiz:', error);
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ message: 'Failed to delete quiz', error: errorMessage }, { status: 500 });
+  }
+}

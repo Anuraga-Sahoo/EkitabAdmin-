@@ -1,3 +1,4 @@
+
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
@@ -16,10 +17,10 @@ export async function POST(request: NextRequest) {
     }
 
     for (const q of quizData.questions) {
-        if (q.marks === undefined || q.marks <= 0) {
+        if (q.marks === undefined || typeof q.marks !== 'number' || q.marks <= 0) {
             return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." must have positive marks.` }, { status: 400 });
         }
-        if (q.negativeMarks !== undefined && q.negativeMarks < 0) {
+        if (q.negativeMarks !== undefined && (typeof q.negativeMarks !== 'number' || q.negativeMarks < 0)) {
             return NextResponse.json({ message: `Question "${q.text.substring(0,20)}..." negative marks must be non-negative.` }, { status: 400 });
         }
     }
@@ -31,8 +32,8 @@ export async function POST(request: NextRequest) {
       questions: quizData.questions.map(q => ({
         ...q,
         id: new ObjectId().toHexString(),
-        marks: q.marks, // Ensure marks are included
-        negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, // Default negativeMarks to 0
+        marks: q.marks, 
+        negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, 
         options: q.options.map(opt => ({
           ...opt,
           id: new ObjectId().toHexString(),
@@ -70,7 +71,6 @@ export async function GET() {
       return {
         _id: _id.toHexString(),
         ...rest,
-        // Ensure questions have marks and negativeMarks, defaulting if necessary
         questions: (rest.questions as Question[] || []).map(q => ({
             ...q,
             marks: q.marks === undefined ? 1 : q.marks,

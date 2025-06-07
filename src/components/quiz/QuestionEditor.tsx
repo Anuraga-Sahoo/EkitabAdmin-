@@ -18,7 +18,7 @@ interface QuestionEditorProps {
   questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string }> };
   onQuestionChange: (index: number, data: Partial<Omit<Question, 'id'>>) => void;
   onRemoveQuestion: (index: number) => void;
-  generateOptionId: () => string; // New prop for generating IDs for new options
+  generateOptionId: () => string;
 }
 
 export function QuestionEditor({
@@ -26,7 +26,7 @@ export function QuestionEditor({
   questionData: initialQuestionData,
   onQuestionChange,
   onRemoveQuestion,
-  generateOptionId, // Destructure the new prop
+  generateOptionId,
 }: QuestionEditorProps) {
   const [questionText, setQuestionText] = useState(initialQuestionData.text || '');
   const [questionImageUrl, setQuestionImageUrl] = useState(initialQuestionData.imageUrl || '');
@@ -35,10 +35,9 @@ export function QuestionEditor({
   const [negativeMarks, setNegativeMarks] = useState<number>(initialQuestionData.negativeMarks === undefined ? 0 : initialQuestionData.negativeMarks);
   
   const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
-    // Directly use the options from props. QuizUploadForm is responsible for ensuring these options
-    // and their IDs are correctly initialized and unique.
     initialQuestionData.options.map(opt => ({
-      ...opt, // opt.id is used directly.
+      ...opt,
+      id: opt.id || generateOptionId(), // Ensure option has an ID
       aiTags: opt.aiTags || []
     }))
   );
@@ -87,24 +86,24 @@ export function QuestionEditor({
   };
 
   const addOption = () => {
-    if (options.length < 5) { // Max 5 options
-      setOptions([...options, { id: generateOptionId(), text: '', isCorrect: false, aiTags: [] }]); // Use passed-in generator
+    if (options.length < 5) { 
+      setOptions([...options, { id: generateOptionId(), text: '', isCorrect: false, aiTags: [] }]); 
     }
   };
 
   const removeOption = (optionIndex: number) => {
-    if (options.length > 1) { // Min 1 option
+    if (options.length > 1) { 
       setOptions(options.filter((_, i) => i !== optionIndex));
     }
   };
 
   const handleMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
     setMarks(value >= 0 ? value : 0);
   };
 
   const handleNegativeMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
     setNegativeMarks(value >= 0 ? value : 0);
   };
 
@@ -153,8 +152,9 @@ export function QuestionEditor({
               type="number"
               value={marks}
               onChange={handleMarksChange}
-              placeholder="e.g., 4"
+              placeholder="e.g., 4 or 2.5"
               min="0"
+              step="any"
             />
           </div>
           <div className="space-y-2">
@@ -164,8 +164,9 @@ export function QuestionEditor({
               type="number"
               value={negativeMarks}
               onChange={handleNegativeMarksChange}
-              placeholder="e.g., 1 (0 if no negative marking)"
+              placeholder="e.g., 1 or 0.5 (0 if no negative marking)"
               min="0"
+              step="any"
             />
              <p className="text-xs text-muted-foreground">Enter a positive value for deduction, e.g., '1' for -1. Defaults to 0.</p>
           </div>

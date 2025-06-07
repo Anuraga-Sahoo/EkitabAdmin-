@@ -121,7 +121,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       ...initialQuestionState, 
       id: newQuestionGuid, 
       clientId: newQuestionGuid, 
-      options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) // Ensure new options get fresh unique IDs
+      options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) 
     }]);
   };
 
@@ -188,8 +188,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
     const questionsForPayload = questions.map(({ clientId, ...qData }) => {
         const { options, ...restOfQData } = qData;
-        const parsedMarks = typeof restOfQData.marks === 'string' ? parseInt(restOfQData.marks, 10) : restOfQData.marks;
-        const parsedNegativeMarks = typeof restOfQData.negativeMarks === 'string' ? parseInt(restOfQData.negativeMarks, 10) : restOfQData.negativeMarks;
+        const parsedMarks = typeof restOfQData.marks === 'string' ? parseFloat(restOfQData.marks) : restOfQData.marks;
+        const parsedNegativeMarks = typeof restOfQData.negativeMarks === 'string' ? parseFloat(restOfQData.negativeMarks) : restOfQData.negativeMarks;
 
         return {
             ...restOfQData, 
