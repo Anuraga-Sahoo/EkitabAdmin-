@@ -48,6 +48,7 @@ export default function ManageExamsPage() {
         throw new Error(errorData.message || 'Failed to fetch exams');
       }
       const data: Exam[] = await response.json();
+      // Sort exams by creation date, newest first, for display in the table
       setExams(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error("Failed to fetch exams:", error);
@@ -61,7 +62,7 @@ export default function ManageExamsPage() {
 
   useEffect(() => {
     fetchExams();
-  }, [toast]); // Removed fetchExams from dependencies to avoid re-fetching on its own change
+  }, []); // Removed toast from dependencies as it doesn't directly influence re-fetching
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +80,7 @@ export default function ManageExamsPage() {
       const response = await fetch('/api/exams/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ examName: newExamName.trim() }),
+        body: JSON.stringify({ examName: newExamName.trim() }), // Name is converted to uppercase on server
       });
       const result = await response.json();
 
@@ -118,7 +119,7 @@ export default function ManageExamsPage() {
       const response = await fetch(`/api/exams/${examId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: currentEditName.trim() }),
+        body: JSON.stringify({ name: currentEditName.trim() }), // Name is converted to uppercase on server
       });
       const result = await response.json();
       if (response.ok) {
@@ -196,7 +197,7 @@ export default function ManageExamsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="font-headline">Existing Exams</CardTitle>
-          <CardDescription>View, edit, or delete existing exams.</CardDescription>
+          <CardDescription>View, edit, or delete existing exams. Sorted by creation date (newest first).</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingExams && (
@@ -320,3 +321,4 @@ export default function ManageExamsPage() {
     </div>
   );
 }
+
