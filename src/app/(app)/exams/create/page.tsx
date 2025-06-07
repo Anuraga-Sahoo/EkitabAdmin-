@@ -61,7 +61,7 @@ export default function ManageExamsPage() {
 
   useEffect(() => {
     fetchExams();
-  }, [toast]);
+  }, [toast]); // Removed fetchExams from dependencies to avoid re-fetching on its own change
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +86,7 @@ export default function ManageExamsPage() {
       if (response.ok) {
         toast({ title: "Exam Created", description: `Exam "${result.examName || newExamName.trim().toUpperCase()}" added successfully.` });
         setNewExamName('');
-        fetchExams(); // Refresh the list
+        fetchExams(); 
       } else {
         toast({ title: "Error Creating Exam", description: result.message || "An unknown error occurred.", variant: "destructive" });
       }
@@ -125,7 +125,7 @@ export default function ManageExamsPage() {
         toast({ title: "Exam Updated", description: `Exam updated to "${result.newName}".` });
         setEditingExamId(null);
         setCurrentEditName('');
-        fetchExams(); // Refresh list
+        fetchExams(); 
       } else {
         toast({ title: "Error Updating Exam", description: result.message || "An unknown error occurred.", variant: "destructive" });
       }
@@ -149,7 +149,7 @@ export default function ManageExamsPage() {
       const result = await response.json();
       if (response.ok) {
         toast({ title: "Exam Deleted", description: result.message });
-        fetchExams(); // Refresh list
+        fetchExams(); 
       } else {
         toast({ title: "Error Deleting Exam", description: result.message || "An unknown error occurred.", variant: "destructive" });
       }
