@@ -354,6 +354,7 @@ export default function ManageQuizzesPage() {
                   <TableHead>Subject</TableHead>
                   <TableHead className="text-center">Questions</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Created At</TableHead>
                   <TableHead>Last Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -391,6 +392,9 @@ export default function ManageQuizzesPage() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    </TableCell>
+                    <TableCell>
+                      {quiz.createdAt ? format(new Date(quiz.createdAt), 'PPp') : 'N/A'}
                     </TableCell>
                     <TableCell>
                       {quiz.updatedAt ? format(new Date(quiz.updatedAt), 'PPp') : 'N/A'}
@@ -438,3 +442,4 @@ export default function ManageQuizzesPage() {
     </div>
   );
 }
+
