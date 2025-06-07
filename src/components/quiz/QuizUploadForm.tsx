@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { QuizFormData, Question as QuestionType, Option as OptionType, Quiz } from '@/lib/types';
+import type { QuizFormData, Question as QuestionType, Option as OptionType, Quiz, Exam } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +30,7 @@ const NONE_VALUE = "_none_";
 
 interface QuizUploadFormProps {
   initialQuizData?: Quiz | null;
-  quizId?: string;
+  quizId?: string; // DB ID of the quiz if editing
   onSuccessfulSubmit?: () => void;
 }
 
@@ -43,10 +43,14 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const [chapter, setChapter] = useState('');
   const [tags, setTags] = useState('');
   const [timerMinutes, setTimerMinutes] = useState<string>('');
+  
   const [questions, setQuestions] = useState<(Omit<QuestionType, 'aiTags'> & { clientId: string; aiTags?: string[] })[]>([
     { ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) },
   ]);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [examsList, setExamsList] = useState<Exam[]>([]);
+  const [selectedExamId, setSelectedExamId] = useState<string | typeof NONE_VALUE>(NONE_VALUE);
 
   const { toast } = useToast();
   const isEditMode = !!initialQuizData && !!quizId;
@@ -63,21 +67,41 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       
       const formQuestions = initialQuizData.questions.map(dbQuestion => ({
         ...dbQuestion,
-        id: dbQuestion.id, // Preserve DB ID
-        clientId: dbQuestion.id || generateQuestionClientId(), // Use DB ID as clientId for existing, or generate for safety
+        id: dbQuestion.id, 
+        clientId: dbQuestion.id || generateQuestionClientId(), 
         aiTags: dbQuestion.aiTags || [],
         options: dbQuestion.options.map(dbOption => ({
           ...dbOption,
-          id: dbOption.id, // Preserve DB ID
+          id: dbOption.id, 
           aiTags: dbOption.aiTags || [],
         })),
       }));
       setQuestions(formQuestions);
+      // Note: Pre-selecting exam for an existing quiz is not handled here yet.
+      // Would require fetching which exam this quizId belongs to, or storing examId on Quiz.
     }
   }, [initialQuizData, isEditMode]);
 
+  useEffect(() => {
+    async function fetchExams() {
+      try {
+        const response = await fetch('/api/exams');
+        if (!response.ok) {
+          throw new Error('Failed to fetch exams');
+        }
+        const data: Exam[] = await response.json();
+        setExamsList(data);
+      } catch (error) {
+        console.error("Failed to fetch exams:", error);
+        toast({ title: "Error", description: "Could not load exams for selection.", variant: "destructive"});
+      }
+    }
+    fetchExams();
+  }, [toast]);
+
 
   const isPracticeTest = testType === 'Practice Test';
+  const showExamDropdown = testType === 'Mock' || testType === 'Previous Year';
 
   const handleAddQuestion = () => {
     const newQuestionId = generateQuestionClientId();
@@ -86,7 +110,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
   const handleQuestionChange = useCallback((index: number, data: Partial<Omit<QuestionType, 'id'>>) => {
     setQuestions((prevQuestions) =>
-      prevQuestions.map((q, i) => (i === index ? { ...q, ...data, id: q.id } : q)) // Ensure q.id is preserved
+      prevQuestions.map((q, i) => (i === index ? { ...q, ...data, id: q.id } : q)) 
     );
   }, []);
 
@@ -97,6 +121,33 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       toast({ title: "Cannot remove", description: "A quiz must have at least one question.", variant: "destructive" });
     }
   }, [questions.length, toast]);
+
+  const associateQuizWithExam = async (quizIdToAssociate: string, examIdToAssociate: string) => {
+    if (!quizIdToAssociate || examIdToAssociate === NONE_VALUE) return;
+
+    try {
+      const response = await fetch(`/api/exams/${examIdToAssociate}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quizId: quizIdToAssociate }),
+      });
+      if (!response.ok) {
+        const errorResult = await response.json();
+        throw new Error(errorResult.message || 'Failed to associate quiz with exam.');
+      }
+      toast({
+        title: 'Exam Association',
+        description: 'Quiz successfully associated with the selected exam.',
+      });
+    } catch (error) {
+      console.error('Failed to associate quiz with exam:', error);
+      toast({
+        title: 'Exam Association Failed',
+        description: (error instanceof Error ? error.message : 'An unknown error occurred.'),
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,18 +169,14 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     const finalClassType = classType === NONE_VALUE || classType === '' ? undefined : classType;
     const finalSubject = subject === NONE_VALUE || subject === '' ? undefined : subject;
 
-    // Prepare questions, stripping temporary clientId and ensuring options also strip their temporary clientIds
-    // if they were only used for local keying and not representing DB IDs.
-    // For edit mode, existing `id` fields from DB should be preserved.
     const questionsForPayload = questions.map(({ clientId, ...qData }) => {
         const { options, ...restOfQData } = qData;
         return {
-            ...restOfQData, // This includes the original `id` if it was from the DB
-            id: qData.id, // Explicitly carry over the question's DB ID
+            ...restOfQData, 
+            id: qData.id, 
             options: options.map(opt => {
-                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { aiTags, ...restOfOpt } = opt; // Keep original option ID
-                return { ...restOfOpt, id: opt.id, aiTags: opt.aiTags || [] }; // Explicitly carry over option's DB ID
+                const { aiTags, ...restOfOpt } = opt; 
+                return { ...restOfOpt, id: opt.id, aiTags: opt.aiTags || [] }; 
             }),
             aiTags: qData.aiTags || []
         };
@@ -173,6 +220,12 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       const result = await response.json();
 
       if (response.ok) {
+        const savedQuizId = result.quizId || quizId; // Get quizId from response for new, or use existing for edit
+
+        if (showExamDropdown && selectedExamId !== NONE_VALUE && savedQuizId) {
+          await associateQuizWithExam(savedQuizId, selectedExamId);
+        }
+
         if (isEditMode) {
             if(onSuccessfulSubmit) {
                 onSuccessfulSubmit();
@@ -188,10 +241,12 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 title: 'Quiz Saved!',
                 description: `Quiz "${formData.title}" has been successfully saved.`,
             });
+            // Reset form for new quiz creation
             setQuizTitle('');
             setTestType('');
             setClassType(NONE_VALUE);
             setSubject(NONE_VALUE);
+            setSelectedExamId(NONE_VALUE);
             setChapter('');
             setTags('');
             setTimerMinutes(''); 
@@ -235,7 +290,10 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
               <Label htmlFor="testType" className="font-semibold">Test Type</Label>
               <Select
                 value={testType}
-                onValueChange={(value) => setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test' | '')}
+                onValueChange={(value) => {
+                  setTestType(value as 'Previous Year' | 'Mock' | 'Practice Test' | '');
+                  if (value === 'Practice Test') setSelectedExamId(NONE_VALUE); // Reset exam if practice test
+                }}
                 required
               >
                 <SelectTrigger id="testType"><SelectValue placeholder="Select test type" /></SelectTrigger>
@@ -247,6 +305,30 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
               </Select>
             </div>
           </div>
+
+          {showExamDropdown && (
+             <div className="space-y-2 pt-4 border-t mt-4">
+              <Label htmlFor="examType" className="font-semibold">Exam</Label>
+              <Select
+                value={selectedExamId}
+                onValueChange={(value) => setSelectedExamId(value as string | typeof NONE_VALUE)}
+                disabled={examsList.length === 0}
+              >
+                <SelectTrigger id="examType">
+                  <SelectValue placeholder={examsList.length === 0 ? "No exams available" : "Select exam (optional)"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>None</SelectItem>
+                  {examsList.map((exam) => (
+                    <SelectItem key={exam._id} value={exam._id}>
+                      {exam.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {examsList.length === 0 && <p className="text-xs text-muted-foreground">No exams found. Please create an exam first.</p>}
+            </div>
+          )}
 
           {isPracticeTest && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t mt-4">
@@ -308,9 +390,9 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         <CardContent>
           {questions.map((q, index) => (
             <QuestionEditor
-              key={q.clientId} // Use clientId for React key, as DB id might not be unique if a question is duplicated before saving
+              key={q.clientId} 
               questionIndex={index}
-              questionData={q} // Pass the whole question object, which includes DB `id` if present
+              questionData={q} 
               onQuestionChange={handleQuestionChange}
               onRemoveQuestion={handleRemoveQuestion}
             />

@@ -31,6 +31,7 @@ export type Quiz = {
   status: QuizStatus;
   createdAt?: Date;
   updatedAt?: Date;
+  // examId?: string; // Optional: if you want to link Quiz back to Exam directly
 };
 
 // For form state, we don't need MongoDB's _id or generated question/option IDs initially
@@ -53,5 +54,6 @@ export type Exam = {
   _id: string; // MongoDB's default ID field
   name: string;
   createdAt: Date;
-  // Future fields: description, quizIds: string[], etc.
+  quizIds?: string[]; // Array of Quiz IDs associated with this exam
 };
+
