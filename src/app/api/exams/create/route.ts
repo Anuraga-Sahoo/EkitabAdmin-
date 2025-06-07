@@ -2,20 +2,11 @@
 // src/app/api/exams/create/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
+import type { Exam } from '@/lib/types'; // Assuming Exam type is defined
 
-// Basic sanitization for collection names
-// MongoDB collection names cannot contain '$', be an empty string,
-// or be the system.profile collection. Also, names should not contain null character.
-// More restrictive: alphanumeric and underscores only.
-function sanitizeCollectionName(name: string): string {
-  let sanitized = name.trim();
-  // Replace spaces and common problematic characters with underscores
-  sanitized = sanitized.replace(/[\s.$]/g, '_');
-  // Remove any remaining characters not suitable for collection names (alphanumeric or underscore)
-  sanitized = sanitized.replace(/[^a-zA-Z0-9_]/g, '');
-  return sanitized;
+function sanitizeExamName(name: string): string {
+  return name.trim(); // Basic trimming, more complex sanitization can be added if needed
 }
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,36 +18,39 @@ export async function POST(request: NextRequest) {
     }
     
     const originalName = examName;
-    examName = sanitizeCollectionName(examName);
+    examName = sanitizeExamName(examName);
 
     if (!examName) {
-        return NextResponse.json({ message: `The provided exam name "${originalName}" resulted in an invalid collection name after sanitization. Please use alphanumeric characters and underscores.` }, { status: 400 });
+        return NextResponse.json({ message: `The provided exam name "${originalName}" is invalid. Please provide a valid name.` }, { status: 400 });
     }
     
-    // Further check if sanitized name is empty (e.g. if original was only '$')
-    if (examName.length === 0) {
-         return NextResponse.json({ message: `The provided exam name "${originalName}" is invalid for a collection name. Please use alphanumeric characters. ` }, { status: 400 });
+    const { examsCollection } = await connectToDatabase();
+
+    // Check if an exam with this name already exists
+    const existingExam = await examsCollection.findOne({ name: examName });
+    if (existingExam) {
+      return NextResponse.json({ message: `An exam named "${examName}" already exists. Please choose a different name.` }, { status: 409 }); // 409 Conflict
     }
 
+    const newExam: Omit<Exam, '_id'> = {
+      name: examName,
+      createdAt: new Date(),
+    };
 
-    const { db } = await connectToDatabase();
+    const result = await examsCollection.insertOne(newExam);
 
-    // Check if collection already exists
-    const collections = await db.listCollections({ name: examName }).toArray();
-    if (collections.length > 0) {
-      return NextResponse.json({ message: `An exam (collection) named "${examName}" already exists. Please choose a different name.` }, { status: 409 }); // 409 Conflict
+    if (result.insertedId) {
+        return NextResponse.json({ message: `Exam "${examName}" created successfully.`, examId: result.insertedId }, { status: 201 });
+    } else {
+        return NextResponse.json({ message: 'Failed to create exam entry.' }, { status: 500 });
     }
-
-    await db.createCollection(examName);
-
-    return NextResponse.json({ message: `Exam collection "${examName}" created successfully.`, collectionName: examName }, { status: 201 });
 
   } catch (error) {
-    console.error('Failed to create exam collection:', error);
+    console.error('Failed to create exam:', error);
     let errorMessage = 'Internal Server Error';
     if (error instanceof Error) {
       errorMessage = error.message;
     }
-    return NextResponse.json({ message: 'Failed to create exam collection', error: errorMessage }, { status: 500 });
+    return NextResponse.json({ message: 'Failed to create exam', error: errorMessage }, { status: 500 });
   }
 }

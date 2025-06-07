@@ -44,8 +44,14 @@ export type User = {
   _id: string; // from MongoDB, will be string after conversion
   name: string;
   email: string;
-  mobileNumber?: string; // Added mobileNumber, removed role
+  mobileNumber?: string;
   joinedDate: Date | string; // Store as Date in DB, will be string after JSON serialization
   lastLogin?: Date | string; // Store as Date in DB, will be string after JSON serialization
 };
 
+export type Exam = {
+  _id: string; // MongoDB's default ID field
+  name: string;
+  createdAt: Date;
+  // Future fields: description, quizIds: string[], etc.
+};

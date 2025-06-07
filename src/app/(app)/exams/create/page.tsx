@@ -32,26 +32,26 @@ export default function CreateExamPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ examName }),
+        body: JSON.stringify({ examName: examName.trim() }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
         toast({
-          title: "Exam Collection Created",
-          description: `Collection "${examName}" created successfully. You can now add quizzes to it.`,
+          title: "Exam Created",
+          description: `Exam "${examName.trim()}" added successfully.`,
         });
         setExamName(''); // Clear input after success
       } else {
         toast({
-          title: "Error Creating Exam Collection",
+          title: "Error Creating Exam",
           description: result.message || "An unknown error occurred.",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Failed to create exam collection:", error);
+      console.error("Failed to create exam:", error);
       toast({
         title: "Network Error",
         description: "Could not connect to the server. Please try again.",
@@ -70,8 +70,7 @@ export default function CreateExamPage() {
           <CardHeader>
             <CardTitle className="font-headline">Exam Details</CardTitle>
             <CardDescription>
-              Enter a name for your new exam. A dedicated collection will be created in the database
-              to store quizzes specifically for this exam.
+              Enter a name for your new exam. This exam will be added to the list of available exams.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -81,12 +80,11 @@ export default function CreateExamPage() {
                 id="examName"
                 value={examName}
                 onChange={(e) => setExamName(e.target.value)}
-                placeholder="e.g., Midterm Physics Exam, NEET Biology Series 1"
+                placeholder="e.g., Final Chemistry Exam, NEET Full Syllabus Test 3"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The exam name will be used to create a new collection in MongoDB.
-                Avoid special characters like '$', '.', or spaces if possible.
+                Choose a clear and descriptive name for the exam.
               </p>
             </div>
           </CardContent>
@@ -97,7 +95,7 @@ export default function CreateExamPage() {
               ) : (
                 <Save className="mr-2 h-5 w-5" />
               )}
-              Save Exam & Create Collection
+              Save Exam
             </Button>
           </CardFooter>
         </form>

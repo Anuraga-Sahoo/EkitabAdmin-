@@ -1,7 +1,7 @@
 
 // src/lib/mongodb.ts
 import { MongoClient, Db, Collection } from 'mongodb';
-import type { Quiz, User } from './types';
+import type { Quiz, User, Exam } from './types';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'database'; // Default to 'database' if not set
@@ -37,6 +37,7 @@ interface DatabaseCollections {
   db: Db;
   quizzesCollection: Collection<Quiz>;
   usersCollection: Collection<Omit<User, '_id'>>; // In DB, _id is ObjectId
+  examsCollection: Collection<Omit<Exam, '_id'>>; // In DB, _id is ObjectId
 }
 
 export async function connectToDatabase(): Promise<DatabaseCollections> {
@@ -45,7 +46,8 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
       client: cachedClient, 
       db: cachedDb, 
       quizzesCollection: cachedDb.collection<Quiz>('quizzes'),
-      usersCollection: cachedDb.collection<Omit<User, '_id'>>('users')
+      usersCollection: cachedDb.collection<Omit<User, '_id'>>('users'),
+      examsCollection: cachedDb.collection<Omit<Exam, '_id'>>('exams')
     };
   }
 
@@ -63,5 +65,6 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
   
   const quizzesCollection = db.collection<Quiz>('quizzes');
   const usersCollection = db.collection<Omit<User, '_id'>>('users');
-  return { client, db, quizzesCollection, usersCollection };
+  const examsCollection = db.collection<Omit<Exam, '_id'>>('exams');
+  return { client, db, quizzesCollection, usersCollection, examsCollection };
 }
