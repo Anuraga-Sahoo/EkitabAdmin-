@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react'; // Added useCallback
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,7 +110,7 @@ export default function ManageQuizzesPage() {
     setIsUpdatingStatus(prev => ({ ...prev, [quizId]: true }));
     try {
       const response = await fetch(`/api/quizzes/${quizId}`, {
-        method: 'PUT', // Changed from PATCH to PUT for consistency with typical REST status updates if it's a full resource state change. Or keep PATCH if only status is sent.
+        method: 'PUT', 
         headers: {
           'Content-Type': 'application/json',
         },
@@ -122,11 +122,6 @@ export default function ManageQuizzesPage() {
         throw new Error(errorData.message || 'Failed to update quiz status');
       }
 
-      // Refetch quizzes to get the most up-to-date list including the updated `updatedAt` field from server
-      // Or, optimistically update the client-side state if server response includes the updated quiz object.
-      // For simplicity and accuracy of `updatedAt`, refetching is safer.
-      // fetchQuizzesData(); 
-      // Optimistic update:
       setQuizzes(prevQuizzes =>
         prevQuizzes.map(q => (q._id === quizId ? { ...q, status: newStatus, updatedAt: new Date() } : q))
       );
@@ -210,7 +205,6 @@ export default function ManageQuizzesPage() {
   
   const getTotalQuestions = (quiz: Quiz): number => {
     if (!quiz.sections || quiz.sections.length === 0) {
-        // Compatibility for old quizzes that might have questions directly
         return (quiz as any).questions?.length || 0;
     }
     return quiz.sections.reduce((sum, section) => sum + (section.questions?.length || 0), 0);
