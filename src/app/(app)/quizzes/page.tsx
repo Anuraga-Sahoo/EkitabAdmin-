@@ -52,32 +52,34 @@ export default function ManageQuizzesPage() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function fetchQuizzes() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch('/api/quizzes');
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Failed to fetch quizzes: ${response.statusText}`);
-        }
-        const data: Quiz[] = await response.json();
-        setQuizzes(data);
-      } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-          toast({ title: "Error", description: err.message, variant: "destructive" });
-        } else {
-          setError("An unknown error occurred");
-          toast({ title: "Error", description: "An unknown error occurred while fetching quizzes.", variant: "destructive" });
-        }
-      } finally {
-        setIsLoading(false);
+  const fetchQuizzesData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/quizzes');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to fetch quizzes: ${response.statusText}`);
       }
+      const data: Quiz[] = await response.json();
+      setQuizzes(data);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      } else {
+        setError("An unknown error occurred");
+        toast({ title: "Error", description: "An unknown error occurred while fetching quizzes.", variant: "destructive" });
+      }
+    } finally {
+      setIsLoading(false);
     }
-    fetchQuizzes();
   }, [toast]);
+
+
+  useEffect(() => {
+    fetchQuizzesData();
+  }, [fetchQuizzesData]);
 
   const handleDeleteQuiz = async () => {
     if (!quizToDelete) return;
@@ -108,7 +110,7 @@ export default function ManageQuizzesPage() {
     setIsUpdatingStatus(prev => ({ ...prev, [quizId]: true }));
     try {
       const response = await fetch(`/api/quizzes/${quizId}`, {
-        method: 'PUT',
+        method: 'PUT', // Changed from PATCH to PUT for consistency with typical REST status updates if it's a full resource state change. Or keep PATCH if only status is sent.
         headers: {
           'Content-Type': 'application/json',
         },
@@ -120,6 +122,11 @@ export default function ManageQuizzesPage() {
         throw new Error(errorData.message || 'Failed to update quiz status');
       }
 
+      // Refetch quizzes to get the most up-to-date list including the updated `updatedAt` field from server
+      // Or, optimistically update the client-side state if server response includes the updated quiz object.
+      // For simplicity and accuracy of `updatedAt`, refetching is safer.
+      // fetchQuizzesData(); 
+      // Optimistic update:
       setQuizzes(prevQuizzes =>
         prevQuizzes.map(q => (q._id === quizId ? { ...q, status: newStatus, updatedAt: new Date() } : q))
       );
@@ -200,6 +207,15 @@ export default function ManageQuizzesPage() {
   };
 
   const activeFiltersCount = selectedStatuses.length + selectedTestTypes.length + selectedSubjects.length;
+  
+  const getTotalQuestions = (quiz: Quiz): number => {
+    if (!quiz.sections || quiz.sections.length === 0) {
+        // Compatibility for old quizzes that might have questions directly
+        return (quiz as any).questions?.length || 0;
+    }
+    return quiz.sections.reduce((sum, section) => sum + (section.questions?.length || 0), 0);
+  };
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -288,40 +304,19 @@ export default function ManageQuizzesPage() {
               {selectedStatuses.map(status => (
                 <Badge key={`status-${status}`} variant="secondary" className="flex items-center gap-1">
                   Status: {status}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
-                    onClick={() => removeFilter('status', status)}
-                  >
-                    <XIcon className="h-3 w-3" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100" onClick={() => removeFilter('status', status)} > <XIcon className="h-3 w-3" /> </Button>
                 </Badge>
               ))}
               {selectedTestTypes.map(type => (
                 <Badge key={`type-${type}`} variant="secondary" className="flex items-center gap-1">
                   Type: {type}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
-                    onClick={() => removeFilter('testType', type)}
-                  >
-                    <XIcon className="h-3 w-3" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100" onClick={() => removeFilter('testType', type)} > <XIcon className="h-3 w-3" /> </Button>
                 </Badge>
               ))}
               {selectedSubjects.map(subject => (
                 <Badge key={`subject-${subject}`} variant="secondary" className="flex items-center gap-1">
                   Subject: {subject}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100"
-                    onClick={() => removeFilter('subject', subject)}
-                  >
-                    <XIcon className="h-3 w-3" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-4 w-4 p-0 ml-1 opacity-70 hover:opacity-100" onClick={() => removeFilter('subject', subject)} > <XIcon className="h-3 w-3" /> </Button>
                 </Badge>
               ))}
             </div>
@@ -329,21 +324,13 @@ export default function ManageQuizzesPage() {
         </CardHeader>
         <CardContent>
           {isLoading && (
-            <div className="flex justify-center items-center py-10">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2 text-muted-foreground">Loading quizzes...</p>
-            </div>
+            <div className="flex justify-center items-center py-10"> <Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2 text-muted-foreground">Loading quizzes...</p> </div>
           )}
           {!isLoading && error && (
-            <div className="text-center py-10 text-destructive">
-              <p>Error: {error}</p>
-              <p>Please try refreshing the page.</p>
-            </div>
+            <div className="text-center py-10 text-destructive"> <p>Error: {error}</p> <p>Please try refreshing the page.</p> </div>
           )}
           {!isLoading && !error && filteredQuizzes.length === 0 && (
-             <div className="text-center py-10 text-muted-foreground">
-              <p>{quizzes.length === 0 ? "No quizzes found. Create one to get started!" : "No quizzes match your search or filters."}</p>
-            </div>
+             <div className="text-center py-10 text-muted-foreground"> <p>{quizzes.length === 0 ? "No quizzes found. Create one to get started!" : "No quizzes match your search or filters."}</p> </div>
           )}
           {!isLoading && !error && filteredQuizzes.length > 0 && (
             <Table>
@@ -365,28 +352,18 @@ export default function ManageQuizzesPage() {
                     <TableCell className="font-medium">{quiz.title}</TableCell>
                     <TableCell>{quiz.testType}</TableCell>
                     <TableCell>{quiz.subject || 'N/A'}</TableCell>
-                    <TableCell className="text-center">{quiz.questions.length}</TableCell>
+                    <TableCell className="text-center">{getTotalQuestions(quiz)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className={`w-[120px] justify-between capitalize ${getStatusClass(quiz.status)} ${isUpdatingStatus[quiz._id] ? 'opacity-70 cursor-not-allowed' : ''}`} 
-                            disabled={isUpdatingStatus[quiz._id]}
-                          >
+                          <Button variant="outline" size="sm" className={`w-[120px] justify-between capitalize ${getStatusClass(quiz.status)} ${isUpdatingStatus[quiz._id] ? 'opacity-70 cursor-not-allowed' : ''}`} disabled={isUpdatingStatus[quiz._id]} >
                             {isUpdatingStatus[quiz._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : quiz.status}
                             {!isUpdatingStatus[quiz._id] && <ChevronDown className="ml-1 h-4 w-4 opacity-60" />}
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[120px]">
                           {(['Published', 'Draft', 'Private'] as QuizStatus[]).map((statusOption) => (
-                            <DropdownMenuItem
-                              key={statusOption}
-                              disabled={quiz.status === statusOption || isUpdatingStatus[quiz._id]}
-                              onClick={() => handleStatusChange(quiz._id, statusOption)}
-                              className="capitalize"
-                            >
+                            <DropdownMenuItem key={statusOption} disabled={quiz.status === statusOption || isUpdatingStatus[quiz._id]} onClick={() => handleStatusChange(quiz._id, statusOption)} className="capitalize" >
                               {statusOption}
                             </DropdownMenuItem>
                           ))}
@@ -401,15 +378,9 @@ export default function ManageQuizzesPage() {
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Link href={`/quizzes/edit/${quiz._id}`} passHref>
-                        <Button variant="ghost" size="icon" className="hover:bg-accent/50">
-                           <Edit className="h-4 w-4" />
-                           <span className="sr-only">Edit</span>
-                        </Button>
+                        <Button variant="ghost" size="icon" className="hover:bg-accent/50"> <Edit className="h-4 w-4" /> <span className="sr-only">Edit</span> </Button>
                       </Link>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setQuizToDelete(quiz)}>
-                         <Trash2 className="h-4 w-4" />
-                         <span className="sr-only">Delete</span>
-                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setQuizToDelete(quiz)}> <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span> </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -424,17 +395,11 @@ export default function ManageQuizzesPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to delete this quiz?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the quiz titled 
-                <span className="font-semibold"> "{quizToDelete.title}"</span>.
-              </AlertDialogDescription>
+              <AlertDialogDescription> This action cannot be undone. This will permanently delete the quiz titled <span className="font-semibold"> "{quizToDelete.title}"</span>. </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => setQuizToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteQuiz} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Delete
-              </AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteQuiz} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90"> {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -442,4 +407,3 @@ export default function ManageQuizzesPage() {
     </div>
   );
 }
-

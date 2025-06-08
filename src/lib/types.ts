@@ -18,6 +18,14 @@ export type Question = {
   negativeMarks?: number; // Marks to deduct for wrong answer, defaults to 0
 };
 
+export type Section = {
+  id: string; // Client-side ID during form manipulation, can be DB ID if persisted
+  name?: string;
+  questionLimit?: number; // Optional: How many questions this section can hold
+  timerMinutes?: number; // Optional: Timer specific to this section
+  questions: Question[];
+};
+
 export type QuizStatus = 'Published' | 'Draft' | 'Private';
 
 export type Quiz = {
@@ -28,18 +36,21 @@ export type Quiz = {
   subject?: 'Physics' | 'Chemistry' | 'Biology';
   chapter?: string;
   tags?: string[];
-  timerMinutes?: number;
-  questions: Question[];
+  timerMinutes?: number; // Overall quiz timer
+  sections: Section[]; // Questions are now within sections
   status: QuizStatus;
   createdAt?: Date;
   updatedAt?: Date;
-  // examId?: string; // Optional: if you want to link Quiz back to Exam directly
 };
 
-// For form state, we don't need MongoDB's _id or generated question/option IDs initially
-export type QuizFormData = Omit<Quiz, '_id' | 'questions' | 'createdAt' | 'updatedAt' | 'status'> & {
-  questions: Array<Omit<Question, 'id' | 'options'> & {
-    options: Array<Omit<Option, 'id'>>;
+// For form state, reflect the new structure with sections
+export type QuizFormData = Omit<Quiz, '_id' | 'sections' | 'createdAt' | 'updatedAt' | 'status'> & {
+  sections: Array<Omit<Section, 'id' | 'questions'> & {
+    id?: string; // Allow id for existing sections
+    questions: Array<Omit<Question, 'id' | 'options'> & {
+      id?: string; // Allow id for existing questions
+      options: Array<Omit<Option, 'id'> & { id?: string }>;
+    }>;
   }>;
 };
 
@@ -58,3 +69,4 @@ export type Exam = {
   createdAt: Date;
   updatedAt?: Date;
   quizIds?: string[]; // Array of Quiz IDs associated
+};
