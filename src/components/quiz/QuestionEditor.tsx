@@ -14,14 +14,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 
 interface QuestionEditorProps {
+  sectionIndex: number; // New prop
   questionIndex: number;
   questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string }> };
-  onQuestionChange: (index: number, data: Partial<Omit<Question, 'id'>>) => void;
-  onRemoveQuestion: (index: number) => void;
+  onQuestionChange: (sectionIndex: number, questionIndex: number, data: Partial<Omit<Question, 'id'>>) => void; // Updated signature
+  onRemoveQuestion: (sectionIndex: number, questionIndex: number) => void; // Updated signature
   generateOptionId: () => string;
 }
 
 export function QuestionEditor({
+  sectionIndex, // Consumed prop
   questionIndex,
   questionData: initialQuestionData,
   onQuestionChange,
@@ -37,7 +39,7 @@ export function QuestionEditor({
   const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
     initialQuestionData.options.map(opt => ({
       ...opt,
-      id: opt.id || generateOptionId(), // Ensure option has an ID
+      id: opt.id || generateOptionId(), 
       aiTags: opt.aiTags || []
     }))
   );
@@ -66,8 +68,9 @@ export function QuestionEditor({
       })),
       explanation: explanation,
     };
-    onQuestionChange(questionIndex, updatedQuestionData);
-  }, [questionText, questionImageUrl, questionAiTags, marks, negativeMarks, options, explanation, questionIndex, onQuestionChange, initialQuestionData.id]);
+    // Pass sectionIndex and questionIndex
+    onQuestionChange(sectionIndex, questionIndex, updatedQuestionData);
+  }, [questionText, questionImageUrl, questionAiTags, marks, negativeMarks, options, explanation, sectionIndex, questionIndex, onQuestionChange, initialQuestionData.id]);
 
   const handleOptionChange = (optionIndex: number, field: keyof Omit<Option, 'id'>, value: any) => {
     setOptions((prevOptions) =>
@@ -98,13 +101,15 @@ export function QuestionEditor({
   };
 
   const handleMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-    setMarks(value >= 0 ? value : 0);
+    const valueString = e.target.value;
+    const value = valueString === '' ? 0 : parseFloat(valueString);
+    setMarks(isNaN(value) || value < 0 ? 0 : value);
   };
-
+  
   const handleNegativeMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-    setNegativeMarks(value >= 0 ? value : 0);
+    const valueString = e.target.value;
+    const value = valueString === '' ? 0 : parseFloat(valueString);
+    setNegativeMarks(isNaN(value) || value < 0 ? 0 : value);
   };
 
   if (!editorId) return <div>Loading editor...</div>;
@@ -116,7 +121,7 @@ export function QuestionEditor({
           <CardTitle className="font-headline text-xl">Question {questionIndex + 1}</CardTitle>
           <CardDescription>Edit the question details, options, scoring, and explanation.</CardDescription>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveQuestion(questionIndex)} aria-label="Remove question">
+        <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveQuestion(sectionIndex, questionIndex)} aria-label="Remove question">
           <Trash2 className="h-5 w-5 text-destructive" />
         </Button>
       </CardHeader>

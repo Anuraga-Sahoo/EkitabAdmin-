@@ -41,7 +41,7 @@ const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { 
   aiTags: [],
 };
 
-const initialSectionState: Omit<SectionType, 'id' | 'questions'> & { questions: Array<Omit<QuestionType, 'aiTags'> & { clientId: string; id: string; aiTags?: string[]; options: Array<typeof initialOptionState> }> } = {
+const initialSectionState: Omit<SectionType, 'id' | 'questions'> & { questions: Array<Omit<QuestionType, 'aiTags'> & { clientId: string; id?: string; aiTags?: string[]; options: Array<typeof initialOptionState> }> } = {
   name: '',
   questionLimit: undefined,
   timerMinutes: undefined,
@@ -68,7 +68,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const [overallTimerMinutes, setOverallTimerMinutes] = useState<string>('');
   
   const [sections, setSections] = useState<Array<SectionType & { clientId: string }>>([
-    { ...initialSectionState, id: generateSectionClientId(), clientId: generateSectionClientId() }
+    { ...initialSectionState, id: generateSectionClientId(), clientId: generateSectionClientId(), name: "Section 1" }
   ]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,18 +90,18 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       
       const formSections = (initialQuizData.sections || []).map(dbSection => ({
         ...dbSection,
-        id: dbSection.id || generateSectionClientId(),
-        clientId: dbSection.id || generateSectionClientId(),
+        id: dbSection.id || generateSectionClientId(), // Ensure existing ID or generate new if missing
+        clientId: dbSection.id || generateSectionClientId(), // Use existing ID for clientId too, or generate
         questions: dbSection.questions.map(dbQuestion => ({
           ...dbQuestion,
-          id: dbQuestion.id, 
-          clientId: dbQuestion.id || generateQuestionClientId(), 
+          id: dbQuestion.id, // This should be the DB ID
+          clientId: dbQuestion.id || generateQuestionClientId(), // Use existing ID for clientId, or generate
           aiTags: dbQuestion.aiTags || [],
           marks: dbQuestion.marks === undefined ? 1 : parseFloat(String(dbQuestion.marks)), 
           negativeMarks: dbQuestion.negativeMarks === undefined ? 0 : parseFloat(String(dbQuestion.negativeMarks)), 
           options: dbQuestion.options.map(dbOption => ({
             ...dbOption,
-            id: dbOption.id || generateOptionClientId(), 
+            id: dbOption.id || generateOptionClientId(), // Ensure existing ID or generate new
             aiTags: dbOption.aiTags || [],
           })),
         })),
@@ -169,7 +169,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         id: newSectionId, 
         clientId: newSectionId,
         name: `Section ${sections.length + 1}`,
-        questions: [{ ...initialQuestionState.questions[0], id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.questions[0].options.map(o => ({...o, id: generateOptionClientId()})) }]
+        questions: [{ ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]
     }]);
   };
 
@@ -214,7 +214,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
           return {
             ...section,
             questions: section.questions.map((q, qIndex) =>
-              qIndex === questionIndex ? { ...q, ...data, id: q.id } : q
+              qIndex === questionIndex ? { ...q, ...data, id: q.id } : q 
             ),
           };
         }
@@ -285,19 +285,19 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       const parsedSectionTimer = sectionData.timerMinutes ? parseInt(String(sectionData.timerMinutes), 10) : undefined;
       if (sectionData.timerMinutes && (isNaN(parsedSectionTimer!) || parsedSectionTimer! < 0)) {
           toast({ title: `Invalid Timer for Section "${sectionData.name || 'Unnamed'}"`, description: "Section timer must be a non-negative number.", variant: "destructive"});
-          setIsSubmitting(false); // This won't stop execution immediately, better to throw an error or return
-          throw new Error("Invalid section timer"); 
+          setIsSubmitting(false); 
+          throw new Error(`Invalid timer for section "${sectionData.name || 'Unnamed'}"`); 
       }
        const parsedQuestionLimit = sectionData.questionLimit ? parseInt(String(sectionData.questionLimit), 10) : undefined;
        if (sectionData.questionLimit && (isNaN(parsedQuestionLimit!) || parsedQuestionLimit! < 0)) {
           toast({ title: `Invalid Question Limit for Section "${sectionData.name || 'Unnamed'}"`, description: "Question limit must be a non-negative number.", variant: "destructive"});
           setIsSubmitting(false);
-          throw new Error("Invalid question limit");
+          throw new Error(`Invalid question limit for section "${sectionData.name || 'Unnamed'}"`);
        }
 
       return {
         ...sectionData,
-        id: sectionId, // Use the potentially existing DB ID
+        id: sectionId, 
         timerMinutes: parsedSectionTimer,
         questionLimit: parsedQuestionLimit,
         questions: sectionData.questions.map(({ clientId: qClientId, id: questionId, ...qData }) => {
@@ -306,7 +306,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
           const parsedNegativeMarks = typeof restOfQData.negativeMarks === 'string' ? parseFloat(restOfQData.negativeMarks) : restOfQData.negativeMarks;
           return {
             ...restOfQData, 
-            id: questionId, // Use the potentially existing DB ID
+            id: questionId, 
             marks: (parsedMarks !== undefined && !isNaN(parsedMarks) && parsedMarks > 0) ? parsedMarks : 1,
             negativeMarks: (parsedNegativeMarks !== undefined && !isNaN(parsedNegativeMarks) && parsedNegativeMarks >= 0) ? parsedNegativeMarks : 0, 
             options: options.map(opt => ({ ...opt, id: opt.id, aiTags: opt.aiTags || [] })),
@@ -334,8 +334,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
             setIsSubmitting(false); return;
         }
         for (const q of section.questions) {
-            if (!q.text || q.options.length === 0 || q.options.every(opt => !opt.text)) {
-                toast({ title: "Incomplete Questions", description: `Ensure all questions in section "${section.name || 'Unnamed'}" have text and at least one option with text.`, variant: "destructive"});
+            if (!q.text || q.options.length === 0 || q.options.every(opt => !opt.text && !opt.imageUrl)) { // Check for image too
+                toast({ title: "Incomplete Questions", description: `Ensure all questions in section "${section.name || 'Unnamed'}" have text and at least one option with text or an image.`, variant: "destructive"});
                 setIsSubmitting(false); return;
             }
             if (!q.options.some(opt => opt.isCorrect)) {
@@ -387,7 +387,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       }
     } catch (error) {
       console.error('Submission error:', error);
-      toast({ title: 'Submission Error', description: (error instanceof Error && error.message.startsWith("Invalid")) ? error.message : 'Could not connect to the server. Please try again later.', variant: 'destructive' });
+      toast({ title: 'Submission Error', description: (error instanceof Error && (error.message.startsWith("Invalid timer") || error.message.startsWith("Invalid question limit"))) ? error.message : 'Could not connect to the server. Please try again later.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -536,10 +536,11 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 {section.questions.map((q, qIndex) => (
                   <QuestionEditor
                     key={q.clientId} 
+                    sectionIndex={sectionIndex} // Pass sectionIndex
                     questionIndex={qIndex}
                     questionData={q} 
-                    onQuestionChange={(idx, data) => handleQuestionChange(sectionIndex, idx, data)}
-                    onRemoveQuestion={(idx) => handleRemoveQuestionInSection(sectionIndex, idx)}
+                    onQuestionChange={handleQuestionChange} // Pass memoized callback
+                    onRemoveQuestion={handleRemoveQuestionInSection} // Pass memoized callback
                     generateOptionId={generateOptionClientId} 
                   />
                 ))}
