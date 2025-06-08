@@ -14,16 +14,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 
 interface QuestionEditorProps {
-  sectionIndex: number; // New prop
+  sectionIndex: number;
   questionIndex: number;
   questionData: Partial<Question> & { clientId: string; options: Array<Partial<Option> & { id: string }> };
-  onQuestionChange: (sectionIndex: number, questionIndex: number, data: Partial<Omit<Question, 'id'>>) => void; // Updated signature
-  onRemoveQuestion: (sectionIndex: number, questionIndex: number) => void; // Updated signature
+  onQuestionChange: (sectionIndex: number, questionIndex: number, data: Partial<Omit<Question, 'id'>>) => void;
+  onRemoveQuestion: (sectionIndex: number, questionIndex: number) => void;
   generateOptionId: () => string;
 }
 
 export function QuestionEditor({
-  sectionIndex, // Consumed prop
+  sectionIndex,
   questionIndex,
   questionData: initialQuestionData,
   onQuestionChange,
@@ -39,15 +39,23 @@ export function QuestionEditor({
   const [options, setOptions] = useState<(Partial<Option> & { id: string })[]>(
     initialQuestionData.options.map(opt => ({
       ...opt,
-      id: opt.id || generateOptionId(), 
+      id: opt.id, // Rely on ID from QuizUploadForm
       aiTags: opt.aiTags || []
     }))
   );
   const [explanation, setExplanation] = useState(initialQuestionData.explanation || '');
   
   const [editorId, setEditorId] = useState<string | null>(null);
+
   useEffect(() => {
-    setEditorId(`question-editor-${initialQuestionData.clientId || Math.random().toString(36).substring(2, 11)}`);
+    // Ensure clientId is always available for editorId
+    if (initialQuestionData.clientId) {
+      setEditorId(`question-editor-${initialQuestionData.clientId}`);
+    } else {
+      // Fallback, though ideally QuizUploadForm always provides a clientId
+      console.warn("QuestionEditor: initialQuestionData.clientId is missing. Generating temporary ID.");
+      setEditorId(`question-editor-temp-${Math.random().toString(36).substring(2, 11)}`);
+    }
   }, [initialQuestionData.clientId]);
 
 
@@ -68,7 +76,6 @@ export function QuestionEditor({
       })),
       explanation: explanation,
     };
-    // Pass sectionIndex and questionIndex
     onQuestionChange(sectionIndex, questionIndex, updatedQuestionData);
   }, [questionText, questionImageUrl, questionAiTags, marks, negativeMarks, options, explanation, sectionIndex, questionIndex, onQuestionChange, initialQuestionData.id]);
 
@@ -102,13 +109,13 @@ export function QuestionEditor({
 
   const handleMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const valueString = e.target.value;
-    const value = valueString === '' ? 0 : parseFloat(valueString);
+    const value = valueString === '' ? 0 : parseFloat(valueString); // Use parseFloat
     setMarks(isNaN(value) || value < 0 ? 0 : value);
   };
   
   const handleNegativeMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const valueString = e.target.value;
-    const value = valueString === '' ? 0 : parseFloat(valueString);
+    const value = valueString === '' ? 0 : parseFloat(valueString); // Use parseFloat
     setNegativeMarks(isNaN(value) || value < 0 ? 0 : value);
   };
 
@@ -159,7 +166,7 @@ export function QuestionEditor({
               onChange={handleMarksChange}
               placeholder="e.g., 4 or 2.5"
               min="0"
-              step="any"
+              step="any" 
             />
           </div>
           <div className="space-y-2">
@@ -171,7 +178,7 @@ export function QuestionEditor({
               onChange={handleNegativeMarksChange}
               placeholder="e.g., 1 or 0.5 (0 if no negative marking)"
               min="0"
-              step="any"
+              step="any" 
             />
              <p className="text-xs text-muted-foreground">Enter a positive value for deduction, e.g., '1' for -1. Defaults to 0.</p>
           </div>

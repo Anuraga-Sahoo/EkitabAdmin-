@@ -31,7 +31,8 @@ const initialOptionState: Omit<OptionType, 'aiTags' | 'id'> & { id: string; aiTa
   aiTags: [],
 };
 
-const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { options: Array<typeof initialOptionState>, aiTags?: string[] } = {
+const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { clientId: string; options: Array<typeof initialOptionState>, aiTags?: string[] } = {
+  clientId: generateQuestionClientId(),
   text: '',
   imageUrl: undefined,
   marks: 1, 
@@ -41,11 +42,12 @@ const initialQuestionState: Omit<QuestionType, 'id' | 'options' | 'aiTags'> & { 
   aiTags: [],
 };
 
-const initialSectionState: Omit<SectionType, 'id' | 'questions'> & { questions: Array<Omit<QuestionType, 'aiTags'> & { clientId: string; id?: string; aiTags?: string[]; options: Array<typeof initialOptionState> }> } = {
+const initialSectionState: Omit<SectionType, 'id' | 'questions'> & { clientId: string; questions: Array<Omit<QuestionType, 'aiTags'> & { clientId: string; id?: string; aiTags?: string[]; options: Array<typeof initialOptionState> }> } = {
+  clientId: generateSectionClientId(),
   name: '',
   questionLimit: undefined,
   timerMinutes: undefined,
-  questions: [{ ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId() }],
+  questions: [{ ...initialQuestionState, clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }],
 };
 
 
@@ -67,18 +69,24 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const [tags, setTags] = useState('');
   const [overallTimerMinutes, setOverallTimerMinutes] = useState<string>('');
   
-  const [sections, setSections] = useState<Array<SectionType & { clientId: string }>>([
-    { ...initialSectionState, id: generateSectionClientId(), clientId: generateSectionClientId(), name: "Section 1" }
-  ]);
+  const [sections, setSections] = useState<Array<SectionType & { clientId: string }>>([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [examsList, setExamsList] = useState<Exam[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string | typeof NONE_VALUE>(NONE_VALUE);
 
+  const [isMounted, setIsMounted] = useState(false);
+
   const { toast } = useToast();
   const isEditMode = !!initialQuizData && !!quizId;
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     if (isEditMode && initialQuizData) {
       setQuizTitle(initialQuizData.title || '');
       setTestType(initialQuizData.testType || '');
@@ -90,18 +98,18 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       
       const formSections = (initialQuizData.sections || []).map(dbSection => ({
         ...dbSection,
-        id: dbSection.id || generateSectionClientId(), // Ensure existing ID or generate new if missing
-        clientId: dbSection.id || generateSectionClientId(), // Use existing ID for clientId too, or generate
+        id: dbSection.id || generateSectionClientId(), 
+        clientId: dbSection.id || generateSectionClientId(), 
         questions: dbSection.questions.map(dbQuestion => ({
           ...dbQuestion,
-          id: dbQuestion.id, // This should be the DB ID
-          clientId: dbQuestion.id || generateQuestionClientId(), // Use existing ID for clientId, or generate
+          id: dbQuestion.id, 
+          clientId: dbQuestion.id || generateQuestionClientId(), 
           aiTags: dbQuestion.aiTags || [],
           marks: dbQuestion.marks === undefined ? 1 : parseFloat(String(dbQuestion.marks)), 
           negativeMarks: dbQuestion.negativeMarks === undefined ? 0 : parseFloat(String(dbQuestion.negativeMarks)), 
           options: dbQuestion.options.map(dbOption => ({
             ...dbOption,
-            id: dbOption.id || generateOptionClientId(), // Ensure existing ID or generate new
+            id: dbOption.id || generateOptionClientId(),
             aiTags: dbOption.aiTags || [],
           })),
         })),
@@ -110,13 +118,15 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       if (formSections.length > 0) {
         setSections(formSections);
       } else if ((initialQuizData as any).questions?.length > 0) {
-        // Handle old data format: wrap existing questions in a default section
         const defaultSectionId = generateSectionClientId();
         setSections([{
           id: defaultSectionId,
           clientId: defaultSectionId,
           name: "Main Section",
+          questionLimit: undefined,
+          timerMinutes: undefined,
           questions: (initialQuizData as any).questions.map((dbQuestion: any) => ({
+            ...initialQuestionState, // ensure all fields are present
             ...dbQuestion,
             id: dbQuestion.id || generateQuestionClientId(),
             clientId: dbQuestion.id || generateQuestionClientId(),
@@ -124,6 +134,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
             marks: dbQuestion.marks === undefined ? 1 : parseFloat(String(dbQuestion.marks)),
             negativeMarks: dbQuestion.negativeMarks === undefined ? 0 : parseFloat(String(dbQuestion.negativeMarks)),
             options: (dbQuestion.options || []).map((dbOption: any) => ({
+              ...initialOptionState, // ensure all fields are present
               ...dbOption,
               id: dbOption.id || generateOptionClientId(),
               aiTags: dbOption.aiTags || [],
@@ -140,7 +151,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       const newSectionId = generateSectionClientId();
       setSections([{ ...initialSectionState, id: newSectionId, clientId: newSectionId, name: "Section 1" }]);
     }
-  }, [initialQuizData, isEditMode]);
+  }, [initialQuizData, isEditMode, isMounted]);
 
   useEffect(() => {
     async function fetchExams() {
@@ -169,7 +180,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         id: newSectionId, 
         clientId: newSectionId,
         name: `Section ${sections.length + 1}`,
-        questions: [{ ...initialQuestionState, id: generateQuestionClientId(), clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]
+        questions: [{ ...initialQuestionState, clientId: generateQuestionClientId(), options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }]
     }]);
   };
 
@@ -190,7 +201,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   };
   
   const handleAddQuestionToSection = (sectionIndex: number) => {
-    const newQuestionGuid = generateQuestionClientId();
+    const newQuestionClientId = generateQuestionClientId();
     setSections(prevSections =>
       prevSections.map((section, i) => {
         if (i === sectionIndex) {
@@ -198,7 +209,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
             ...section,
             questions: [
               ...section.questions,
-              { ...initialQuestionState, id: newQuestionGuid, clientId: newQuestionGuid, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }
+              { ...initialQuestionState, clientId: newQuestionClientId, options: initialQuestionState.options.map(o => ({...o, id: generateOptionClientId()})) }
             ]
           };
         }
@@ -207,14 +218,14 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     );
   };
 
-  const handleQuestionChange = useCallback((sectionIndex: number, questionIndex: number, data: Partial<Omit<QuestionType, 'id'>>) => {
+ const handleQuestionChange = useCallback((sectionIndex: number, questionIndex: number, data: Partial<Omit<QuestionType, 'id'>>) => {
     setSections(prevSections =>
       prevSections.map((section, sIndex) => {
         if (sIndex === sectionIndex) {
           return {
             ...section,
             questions: section.questions.map((q, qIndex) =>
-              qIndex === questionIndex ? { ...q, ...data, id: q.id } : q 
+              qIndex === questionIndex ? { ...q, ...data, id: q.id, clientId: q.clientId } : q
             ),
           };
         }
@@ -241,6 +252,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       })
     );
   }, [toast]);
+
 
   const associateQuizWithExam = async (quizIdToAssociate: string, examIdToAssociate: string) => {
     if (!quizIdToAssociate || examIdToAssociate === NONE_VALUE) return;
@@ -281,7 +293,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     const finalClassType = classType === NONE_VALUE || classType === '' ? undefined : classType;
     const finalSubject = subject === NONE_VALUE || subject === '' ? undefined : subject;
 
-    const sectionsForPayload = sections.map(({ clientId, id: sectionId, ...sectionData }) => {
+    const sectionsForPayload = sections.map(({ clientId, id: sectionDbId, ...sectionData }) => {
       const parsedSectionTimer = sectionData.timerMinutes ? parseInt(String(sectionData.timerMinutes), 10) : undefined;
       if (sectionData.timerMinutes && (isNaN(parsedSectionTimer!) || parsedSectionTimer! < 0)) {
           toast({ title: `Invalid Timer for Section "${sectionData.name || 'Unnamed'}"`, description: "Section timer must be a non-negative number.", variant: "destructive"});
@@ -297,18 +309,26 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
       return {
         ...sectionData,
-        id: sectionId, 
+        id: sectionDbId, 
         timerMinutes: parsedSectionTimer,
         questionLimit: parsedQuestionLimit,
-        questions: sectionData.questions.map(({ clientId: qClientId, id: questionId, ...qData }) => {
+        questions: sectionData.questions.map(({ clientId: qClientId, id: questionDbId, ...qData }) => {
           const { options, ...restOfQData } = qData;
           const parsedMarks = typeof restOfQData.marks === 'string' ? parseFloat(restOfQData.marks) : restOfQData.marks;
           const parsedNegativeMarks = typeof restOfQData.negativeMarks === 'string' ? parseFloat(restOfQData.negativeMarks) : restOfQData.negativeMarks;
+          
+          if(parsedMarks === undefined || isNaN(parsedMarks) || parsedMarks <= 0){
+             throw new Error(`Marks for Question "${restOfQData.text.substring(0,20)}..." must be a positive number.`);
+          }
+          if(parsedNegativeMarks === undefined || isNaN(parsedNegativeMarks) || parsedNegativeMarks < 0){
+             throw new Error(`Negative marks for Question "${restOfQData.text.substring(0,20)}..." must be a non-negative number.`);
+          }
+
           return {
             ...restOfQData, 
-            id: questionId, 
-            marks: (parsedMarks !== undefined && !isNaN(parsedMarks) && parsedMarks > 0) ? parsedMarks : 1,
-            negativeMarks: (parsedNegativeMarks !== undefined && !isNaN(parsedNegativeMarks) && parsedNegativeMarks >= 0) ? parsedNegativeMarks : 0, 
+            id: questionDbId, 
+            marks: parsedMarks,
+            negativeMarks: parsedNegativeMarks, 
             options: options.map(opt => ({ ...opt, id: opt.id, aiTags: opt.aiTags || [] })),
             aiTags: qData.aiTags || []
           };
@@ -328,30 +348,38 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       sections: sectionsForPayload
     };
     
-    for (const section of formData.sections) {
-        if (section.questions.length === 0) {
-            toast({ title: "Empty Section", description: `Section "${section.name || 'Unnamed'}" must have at least one question.`, variant: "destructive"});
-            setIsSubmitting(false); return;
-        }
-        for (const q of section.questions) {
-            if (!q.text || q.options.length === 0 || q.options.every(opt => !opt.text && !opt.imageUrl)) { // Check for image too
-                toast({ title: "Incomplete Questions", description: `Ensure all questions in section "${section.name || 'Unnamed'}" have text and at least one option with text or an image.`, variant: "destructive"});
-                setIsSubmitting(false); return;
-            }
-            if (!q.options.some(opt => opt.isCorrect)) {
-                toast({ title: "No Correct Answer", description: `Each question in section "${section.name || 'Unnamed'}" must have at least one correct answer.`, variant: "destructive"});
-                setIsSubmitting(false); return;
-            }
-            if (q.marks <= 0) {
-                toast({ title: "Invalid Marks", description: `Marks for Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must be positive.`, variant: "destructive"});
-                setIsSubmitting(false); return;
-            }
-            if (q.negativeMarks === undefined || q.negativeMarks < 0) {
-                 toast({ title: "Invalid Negative Marks", description: `Negative marks for Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must be non-negative.`, variant: "destructive"});
-                setIsSubmitting(false); return;
-            }
-        }
+    try {
+      for (const section of formData.sections) {
+          if (section.questions.length === 0) {
+              toast({ title: "Empty Section", description: `Section "${section.name || 'Unnamed'}" must have at least one question.`, variant: "destructive"});
+              setIsSubmitting(false); return;
+          }
+          for (const q of section.questions) {
+              if (!q.text || q.options.length === 0 || q.options.every(opt => !opt.text && !opt.imageUrl)) { 
+                  toast({ title: "Incomplete Questions", description: `Ensure all questions in section "${section.name || 'Unnamed'}" have text and at least one option with text or an image.`, variant: "destructive"});
+                  setIsSubmitting(false); return;
+              }
+              if (!q.options.some(opt => opt.isCorrect)) {
+                  toast({ title: "No Correct Answer", description: `Each question in section "${section.name || 'Unnamed'}" must have at least one correct answer.`, variant: "destructive"});
+                  setIsSubmitting(false); return;
+              }
+              if (q.marks <= 0) {
+                  toast({ title: "Invalid Marks", description: `Marks for Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must be positive.`, variant: "destructive"});
+                  setIsSubmitting(false); return;
+              }
+              if (q.negativeMarks === undefined || q.negativeMarks < 0) {
+                   toast({ title: "Invalid Negative Marks", description: `Negative marks for Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must be non-negative.`, variant: "destructive"});
+                  setIsSubmitting(false); return;
+              }
+          }
+      }
+    } catch (error) {
+       console.error('Client-side validation error:', error);
+       toast({ title: 'Validation Error', description: (error instanceof Error) ? error.message : 'An unexpected validation error occurred.', variant: 'destructive' });
+       setIsSubmitting(false);
+       return;
     }
+
 
     const endpoint = isEditMode ? `/api/quizzes/${quizId}` : '/api/quizzes';
     const method = isEditMode ? 'PUT' : 'POST';
@@ -387,11 +415,21 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       }
     } catch (error) {
       console.error('Submission error:', error);
-      toast({ title: 'Submission Error', description: (error instanceof Error && (error.message.startsWith("Invalid timer") || error.message.startsWith("Invalid question limit"))) ? error.message : 'Could not connect to the server. Please try again later.', variant: 'destructive' });
+      toast({ title: 'Submission Error', description: (error instanceof Error && (error.message.startsWith("Invalid timer") || error.message.startsWith("Invalid question limit") || error.message.startsWith("Marks for Question") || error.message.startsWith("Negative marks for Question"))) ? error.message : 'Could not connect to the server. Please try again later.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  if (!isMounted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-lg text-muted-foreground">Loading form...</p>
+      </div>
+    );
+  }
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -536,11 +574,11 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 {section.questions.map((q, qIndex) => (
                   <QuestionEditor
                     key={q.clientId} 
-                    sectionIndex={sectionIndex} // Pass sectionIndex
+                    sectionIndex={sectionIndex} 
                     questionIndex={qIndex}
                     questionData={q} 
-                    onQuestionChange={handleQuestionChange} // Pass memoized callback
-                    onRemoveQuestion={handleRemoveQuestionInSection} // Pass memoized callback
+                    onQuestionChange={handleQuestionChange} 
+                    onRemoveQuestion={handleRemoveQuestionInSection} 
                     generateOptionId={generateOptionClientId} 
                   />
                 ))}
