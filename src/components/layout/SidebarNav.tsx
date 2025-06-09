@@ -3,15 +3,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, UploadCloud, ListChecks, Settings, Users, FilePlus2 } from 'lucide-react'; // Added Users, FilePlus2 icons
+import { LayoutDashboard, UploadCloud, ListChecks, Settings, Users, FilePlus2, School, BookText, Bookmark } from 'lucide-react'; 
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/quizzes/upload', label: 'Upload Quiz', icon: UploadCloud },
   { href: '/quizzes', label: 'Manage Quizzes', icon: ListChecks },
-  { href: '/exams/create', label: 'Create Exam', icon: FilePlus2 }, // Added Create Exam link
+  { href: '/exams/create', label: 'Manage Exams', icon: FilePlus2 }, 
+  { href: '/classes', label: 'Manage Classes', icon: School },
+  { href: '/subjects', label: 'Manage Subjects', icon: BookText },
+  { href: '/chapters', label: 'Manage Chapters', icon: Bookmark },
   { href: '/users', label: 'Users', icon: Users },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

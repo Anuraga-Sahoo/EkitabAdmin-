@@ -1,7 +1,7 @@
 
 // src/lib/mongodb.ts
 import { MongoClient, Db, Collection } from 'mongodb';
-import type { Quiz, User, Exam } from './types';
+import type { Quiz, User, Exam, ClassItem, SubjectItem, ChapterItem } from './types';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'database'; // Default to 'database' if not set
@@ -36,8 +36,11 @@ interface DatabaseCollections {
   client: MongoClient;
   db: Db;
   quizzesCollection: Collection<Quiz>;
-  usersCollection: Collection<Omit<User, '_id'>>; // In DB, _id is ObjectId
-  examsCollection: Collection<Omit<Exam, '_id'>>; // In DB, _id is ObjectId
+  usersCollection: Collection<Omit<User, '_id'>>; 
+  examsCollection: Collection<Omit<Exam, '_id'>>; 
+  classesCollection: Collection<Omit<ClassItem, '_id'>>;
+  subjectsCollection: Collection<Omit<SubjectItem, '_id'>>;
+  chaptersCollection: Collection<Omit<ChapterItem, '_id'>>;
 }
 
 export async function connectToDatabase(): Promise<DatabaseCollections> {
@@ -47,7 +50,10 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
       db: cachedDb, 
       quizzesCollection: cachedDb.collection<Quiz>('quizzes'),
       usersCollection: cachedDb.collection<Omit<User, '_id'>>('users'),
-      examsCollection: cachedDb.collection<Omit<Exam, '_id'>>('exams')
+      examsCollection: cachedDb.collection<Omit<Exam, '_id'>>('exams'),
+      classesCollection: cachedDb.collection<Omit<ClassItem, '_id'>>('classes'),
+      subjectsCollection: cachedDb.collection<Omit<SubjectItem, '_id'>>('subjects'),
+      chaptersCollection: cachedDb.collection<Omit<ChapterItem, '_id'>>('chapters'),
     };
   }
 
@@ -66,5 +72,9 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
   const quizzesCollection = db.collection<Quiz>('quizzes');
   const usersCollection = db.collection<Omit<User, '_id'>>('users');
   const examsCollection = db.collection<Omit<Exam, '_id'>>('exams');
-  return { client, db, quizzesCollection, usersCollection, examsCollection };
+  const classesCollection = db.collection<Omit<ClassItem, '_id'>>('classes');
+  const subjectsCollection = db.collection<Omit<SubjectItem, '_id'>>('subjects');
+  const chaptersCollection = db.collection<Omit<ChapterItem, '_id'>>('chapters');
+
+  return { client, db, quizzesCollection, usersCollection, examsCollection, classesCollection, subjectsCollection, chaptersCollection };
 }

@@ -70,3 +70,24 @@ export type Exam = {
   updatedAt?: Date;
   quizIds?: string[]; // Array of Quiz IDs associated
 };
+
+export type ClassItem = {
+  _id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt?: Date;
+};
+
+export type SubjectItem = {
+  _id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt?: Date;
+};
+
+export type ChapterItem = {
+  _id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt?: Date;
+};
