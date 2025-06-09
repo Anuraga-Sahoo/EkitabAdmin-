@@ -174,8 +174,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         toast({ title: "Error", description: "Could not load exams for selection.", variant: "destructive"});
       }
     }
-    fetchExams();
-
+    
     async function fetchTaxonomyItems(endpoint: string, setter: React.Dispatch<React.SetStateAction<any[]>>, itemName: string) {
       try {
         const response = await fetch(endpoint);
@@ -189,6 +188,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     }
 
     if (isMounted) {
+      fetchExams();
       fetchTaxonomyItems('/api/classes', setAllClasses, 'classes');
       fetchTaxonomyItems('/api/subjects', setAllSubjects, 'subjects');
       fetchTaxonomyItems('/api/chapters', setAllChapters, 'chapters');
@@ -250,7 +250,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
           return {
             ...section,
             questions: section.questions.map((q, qIndex) =>
-              qIndex === questionIndex ? { ...q, ...data, id: q.id, clientId: q.clientId } : q
+              qIndex === questionIndex ? { ...q, ...data, id: q.id, clientId: q.clientId } : q // Preserve existing id and clientId
             ),
           };
         }
@@ -315,9 +315,9 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         return;
     }
 
-    const finalClassId = classId === NONE_VALUE || classId === '' ? undefined : classId;
-    const finalSubjectId = subjectId === NONE_VALUE || subjectId === '' ? undefined : subjectId;
-    const finalChapterId = chapterId === NONE_VALUE || chapterId === '' ? undefined : chapterId;
+    const finalClassId = (isPracticeTest && classId && classId !== NONE_VALUE) ? classId : undefined;
+    const finalSubjectId = (isPracticeTest && subjectId && subjectId !== NONE_VALUE) ? subjectId : undefined;
+    const finalChapterId = (isPracticeTest && chapterId && chapterId !== NONE_VALUE) ? chapterId : undefined;
 
     const sectionsForPayload = sections.map(({ clientId, id: sectionDbId, ...sectionData }) => {
       const parsedSectionTimer = sectionData.timerMinutes ? parseInt(String(sectionData.timerMinutes), 10) : undefined;
@@ -335,7 +335,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
       return {
         ...sectionData,
-        id: sectionDbId, 
+        id: sectionDbId, // Use existing db id if available (edit mode), otherwise it's fine if undefined for new sections
         timerMinutes: parsedSectionTimer,
         questionLimit: parsedQuestionLimit,
         questions: sectionData.questions.map(({ clientId: qClientId, id: questionDbId, ...qData }) => {
@@ -352,10 +352,10 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
 
           return {
             ...restOfQData, 
-            id: questionDbId, 
+            id: questionDbId, // Use existing db id if available (edit mode), otherwise it's fine if undefined for new questions
             marks: parsedMarks,
             negativeMarks: parsedNegativeMarks, 
-            options: options.map(opt => ({ ...opt, id: opt.id, aiTags: opt.aiTags || [] })),
+            options: options.map(opt => ({ ...opt, id: opt.id, aiTags: opt.aiTags || [] })), // Preserve option ID
             aiTags: qData.aiTags || []
           };
         })
@@ -515,7 +515,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 <Select value={classId} onValueChange={(value) => setClassId(value === NONE_VALUE ? '' : value)} >
                   <SelectTrigger id="classId"><SelectValue placeholder="Select class (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE_VALUE}>None</SelectItem>
+                    <SelectItem value={NONE_VALUE}>None (General)</SelectItem>
                     {allClasses.map((cls) => (<SelectItem key={cls._id} value={cls._id}>{cls.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
@@ -525,7 +525,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 <Select value={subjectId} onValueChange={(value) => setSubjectId(value === NONE_VALUE ? '' : value)} >
                   <SelectTrigger id="subjectId"><SelectValue placeholder="Select subject (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE_VALUE}>None</SelectItem>
+                    <SelectItem value={NONE_VALUE}>None (General)</SelectItem>
                     {allSubjects.map((subj) => (<SelectItem key={subj._id} value={subj._id}>{subj.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
@@ -535,7 +535,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                  <Select value={chapterId} onValueChange={(value) => setChapterId(value === NONE_VALUE ? '' : value)} >
                   <SelectTrigger id="chapterId"><SelectValue placeholder="Select chapter (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NONE_VALUE}>None</SelectItem>
+                    <SelectItem value={NONE_VALUE}>None (General)</SelectItem>
                     {allChapters.map((chap) => (<SelectItem key={chap._id} value={chap._id}>{chap.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
@@ -556,6 +556,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         </CardContent>
       </Card>
 
+    {isMounted && sections.length > 0 && (
       <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Sections & Questions</CardTitle>
@@ -587,7 +588,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                         />
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor={`sectionQuestionLimit-${section.clientId}`} className="text-sm font-medium">No. of Questions in Section</Label>
+                        <Label htmlFor={`sectionQuestionLimit-${section.clientId}`} className="text-sm font-medium">No. of Questions</Label>
                         <Input 
                             id={`sectionQuestionLimit-${section.clientId}`}
                             type="number" 
@@ -615,7 +616,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
                 {section.questions.map((q, qIndex) => (
                   <QuestionEditor
                     key={q.clientId} 
-                    sectionIndex={sectionIndex} 
+                    sectionIndex={sectionIndex}
                     questionIndex={qIndex}
                     questionData={q} 
                     onQuestionChange={handleQuestionChange} 
@@ -635,7 +636,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
           </Button>
         </CardContent>
       </Card>
-
+    )}
       <CardFooter className="flex flex-col md:flex-row justify-end gap-4 pt-8 border-t">
         <Button type="button" variant="outline" size="lg" className="w-full md:w-auto" disabled={isSubmitting}>
           <Eye className="mr-2 h-5 w-5" /> Preview Quiz (Not Implemented)
@@ -648,4 +649,3 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     </form>
   );
 }
-

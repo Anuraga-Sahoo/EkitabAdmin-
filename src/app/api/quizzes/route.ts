@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       }
       return {
         ...section,
-        id: new ObjectId().toHexString(), // Ensure section has an ID
+        id: section.id || new ObjectId().toHexString(), // Use existing ID or generate new for section
         questions: section.questions.map(q => {
           const marks = q.marks === undefined ? 1 : parseFloat(String(q.marks));
           const negativeMarks = q.negativeMarks === undefined ? 0 : parseFloat(String(q.negativeMarks));
@@ -91,12 +91,12 @@ export async function POST(request: NextRequest) {
           }
           return {
             ...q,
-            id: new ObjectId().toHexString(),
+            id: q.id || new ObjectId().toHexString(), // Use existing ID or generate new for question
             marks: marks, 
             negativeMarks: negativeMarks, 
             options: q.options.map(opt => ({
               ...opt,
-              id: new ObjectId().toHexString(),
+              id: opt.id || new ObjectId().toHexString(), // Use existing ID or generate new for option
             })),
           };
         }),
@@ -119,21 +119,19 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     };
 
-    const result = await quizzesCollection.insertOne(quizToInsert as any); // `as any` due to Omit<Quiz, '_id'> vs Quiz differences before insertion
+    const result = await quizzesCollection.insertOne(quizToInsert as any); 
 
     if (result.insertedId) {
       const newQuizId = result.insertedId.toHexString();
 
-      // If a chapterId is provided, add this quizId to the chapter's quizIds array
       if (quizData.chapterId && ObjectId.isValid(quizData.chapterId)) {
         try {
           await chaptersCollection.updateOne(
             { _id: new ObjectId(quizData.chapterId) },
-            { $addToSet: { quizIds: newQuizId } } // $addToSet prevents duplicates
+            { $addToSet: { quizIds: newQuizId } } 
           );
         } catch (chapterUpdateError) {
           console.error('Failed to update chapter with new quizId:', chapterUpdateError);
-          // Log error but don't fail the quiz creation itself for this secondary operation
         }
       }
       return NextResponse.json({ message: 'Quiz created successfully', quizId: newQuizId }, { status: 201 });
@@ -161,10 +159,9 @@ export async function GET() {
       return {
         _id: _id.toHexString(),
         ...adaptedQuizData,
-        // Ensure essential top-level fields are present even after adaptation
         title: rest.title,
         testType: rest.testType,
-        classId: rest.classId, // ensure these are carried over
+        classId: rest.classId, 
         subjectId: rest.subjectId,
         chapterId: rest.chapterId,
         status: rest.status,
@@ -183,4 +180,3 @@ export async function GET() {
     return NextResponse.json({ message: 'Failed to fetch quizzes', error: errorMessage }, { status: 500 });
   }
 }
-

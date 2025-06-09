@@ -32,9 +32,9 @@ export type Quiz = {
   _id: string; // MongoDB's default ID field, always present when fetched
   title: string;
   testType: 'Previous Year' | 'Mock' | 'Practice Test';
-  classId?: string;
-  subjectId?: string;
-  chapterId?: string;
+  classId?: string; // Stores MongoDB ObjectId of the selected ClassItem
+  subjectId?: string; // Stores MongoDB ObjectId of the selected SubjectItem
+  chapterId?: string; // Stores MongoDB ObjectId of the selected ChapterItem
   tags?: string[];
   timerMinutes?: number; // Overall quiz timer
   sections: Section[]; // Questions are now within sections
