@@ -32,9 +32,9 @@ export type Quiz = {
   _id: string; // MongoDB's default ID field, always present when fetched
   title: string;
   testType: 'Previous Year' | 'Mock' | 'Practice Test';
-  classType?: '11th' | '12th';
-  subject?: 'Physics' | 'Chemistry' | 'Biology';
-  chapter?: string;
+  classId?: string;
+  subjectId?: string;
+  chapterId?: string;
   tags?: string[];
   timerMinutes?: number; // Overall quiz timer
   sections: Section[]; // Questions are now within sections
@@ -45,6 +45,9 @@ export type Quiz = {
 
 // For form state, reflect the new structure with sections
 export type QuizFormData = Omit<Quiz, '_id' | 'sections' | 'createdAt' | 'updatedAt' | 'status'> & {
+  classId?: string;
+  subjectId?: string;
+  chapterId?: string;
   sections: Array<Omit<Section, 'id' | 'questions'> & {
     id?: string; // Allow id for existing sections
     questions: Array<Omit<Question, 'id' | 'options'> & {
@@ -90,4 +93,6 @@ export type ChapterItem = {
   name: string;
   createdAt: Date;
   updatedAt?: Date;
+  quizIds?: string[]; // Array of Quiz IDs associated with this chapter
 };
+

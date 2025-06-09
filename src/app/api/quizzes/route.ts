@@ -2,7 +2,7 @@
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { QuizFormData, Quiz, Question, Section } from '@/lib/types';
+import type { QuizFormData, Quiz, Question, Section, ChapterItem } from '@/lib/types';
 import { ObjectId } from 'mongodb';
 
 // Helper to adapt old quiz structure (direct questions array) to new sections structure
@@ -47,6 +47,9 @@ function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
 
   return {
     ...rest,
+    classId: rest.classId,
+    subjectId: rest.subjectId,
+    chapterId: rest.chapterId,
     sections: finalSections,
   } as Omit<Quiz, '_id'>; // Cast needed as 'rest' doesn't know about sections
 }
@@ -77,17 +80,20 @@ export async function POST(request: NextRequest) {
         ...section,
         id: new ObjectId().toHexString(), // Ensure section has an ID
         questions: section.questions.map(q => {
-          if (q.marks === undefined || typeof q.marks !== 'number' || q.marks <= 0) {
+          const marks = q.marks === undefined ? 1 : parseFloat(String(q.marks));
+          const negativeMarks = q.negativeMarks === undefined ? 0 : parseFloat(String(q.negativeMarks));
+
+          if (marks <= 0) {
             throw new Error(`Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must have positive marks.`);
           }
-          if (q.negativeMarks !== undefined && (typeof q.negativeMarks !== 'number' || q.negativeMarks < 0)) {
+          if (negativeMarks < 0) {
             throw new Error(`Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" negative marks must be non-negative.`);
           }
           return {
             ...q,
             id: new ObjectId().toHexString(),
-            marks: q.marks, 
-            negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks, 
+            marks: marks, 
+            negativeMarks: negativeMarks, 
             options: q.options.map(opt => ({
               ...opt,
               id: new ObjectId().toHexString(),
@@ -97,20 +103,40 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const { quizzesCollection } = await connectToDatabase();
+    const { quizzesCollection, chaptersCollection } = await connectToDatabase();
 
-    const quizToInsert = {
-      ...quizData,
+    const quizToInsert: Omit<Quiz, '_id'> = {
+      title: quizData.title,
+      testType: quizData.testType,
+      classId: quizData.classId,
+      subjectId: quizData.subjectId,
+      chapterId: quizData.chapterId,
+      tags: quizData.tags,
+      timerMinutes: quizData.timerMinutes,
       sections: processedSections,
       status: 'Draft', 
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    const result = await quizzesCollection.insertOne(quizToInsert as any);
+    const result = await quizzesCollection.insertOne(quizToInsert as any); // `as any` due to Omit<Quiz, '_id'> vs Quiz differences before insertion
 
     if (result.insertedId) {
-      return NextResponse.json({ message: 'Quiz created successfully', quizId: result.insertedId }, { status: 201 });
+      const newQuizId = result.insertedId.toHexString();
+
+      // If a chapterId is provided, add this quizId to the chapter's quizIds array
+      if (quizData.chapterId && ObjectId.isValid(quizData.chapterId)) {
+        try {
+          await chaptersCollection.updateOne(
+            { _id: new ObjectId(quizData.chapterId) },
+            { $addToSet: { quizIds: newQuizId } } // $addToSet prevents duplicates
+          );
+        } catch (chapterUpdateError) {
+          console.error('Failed to update chapter with new quizId:', chapterUpdateError);
+          // Log error but don't fail the quiz creation itself for this secondary operation
+        }
+      }
+      return NextResponse.json({ message: 'Quiz created successfully', quizId: newQuizId }, { status: 201 });
     } else {
       return NextResponse.json({ message: 'Failed to create quiz' }, { status: 500 });
     }
@@ -138,6 +164,9 @@ export async function GET() {
         // Ensure essential top-level fields are present even after adaptation
         title: rest.title,
         testType: rest.testType,
+        classId: rest.classId, // ensure these are carried over
+        subjectId: rest.subjectId,
+        chapterId: rest.chapterId,
         status: rest.status,
         createdAt: rest.createdAt,
         updatedAt: rest.updatedAt,
@@ -154,3 +183,4 @@ export async function GET() {
     return NextResponse.json({ message: 'Failed to fetch quizzes', error: errorMessage }, { status: 500 });
   }
 }
+
