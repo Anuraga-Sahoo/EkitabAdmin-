@@ -166,10 +166,12 @@ export default function ManageChaptersPage() {
     }
   };
 
+  const EntityIconComponent = entityIcon;
+
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-bold tracking-tight font-headline text-primary flex items-center">
-        <entityIcon className="mr-3 h-8 w-8" /> Create & Manage {entityName}s
+        <EntityIconComponent className="mr-3 h-8 w-8" /> Create & Manage {entityName}s
       </h1>
       
       <Card className="shadow-lg max-w-2xl">
