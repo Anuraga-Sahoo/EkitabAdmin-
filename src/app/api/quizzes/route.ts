@@ -2,7 +2,7 @@
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { QuizFormData, Quiz, Question, Section, ChapterItem } from '@/lib/types';
+import type { QuizFormData, Quiz, Question, Section, ChapterItem, ClassItem, SubjectItem } from '@/lib/types';
 import { ObjectId } from 'mongodb';
 
 // Helper to adapt old quiz structure (direct questions array) to new sections structure
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const { quizzesCollection, chaptersCollection } = await connectToDatabase();
+    const { quizzesCollection, chaptersCollection, classesCollection, subjectsCollection } = await connectToDatabase();
 
     const quizToInsert: Omit<Quiz, '_id'> = {
       title: quizData.title,
@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
     if (result.insertedId) {
       const newQuizId = result.insertedId.toHexString();
 
+      // Link quiz to chapter
       if (quizData.chapterId && ObjectId.isValid(quizData.chapterId)) {
         try {
           await chaptersCollection.updateOne(
@@ -134,6 +135,31 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update chapter with new quizId:', chapterUpdateError);
         }
       }
+
+      // Link subjectId to class if both are present
+      if (quizData.classId && ObjectId.isValid(quizData.classId) && quizData.subjectId && ObjectId.isValid(quizData.subjectId)) {
+        try {
+          await classesCollection.updateOne(
+            { _id: new ObjectId(quizData.classId) },
+            { $addToSet: { associatedSubjectIds: quizData.subjectId } }
+          );
+        } catch (classUpdateError) {
+          console.error('Failed to update class with associated subjectId:', classUpdateError);
+        }
+      }
+
+      // Link chapterId to subject if both are present
+      if (quizData.subjectId && ObjectId.isValid(quizData.subjectId) && quizData.chapterId && ObjectId.isValid(quizData.chapterId)) {
+        try {
+          await subjectsCollection.updateOne(
+            { _id: new ObjectId(quizData.subjectId) },
+            { $addToSet: { associatedChapterIds: quizData.chapterId } }
+          );
+        } catch (subjectUpdateError) {
+          console.error('Failed to update subject with associated chapterId:', subjectUpdateError);
+        }
+      }
+
       return NextResponse.json({ message: 'Quiz created successfully', quizId: newQuizId }, { status: 201 });
     } else {
       return NextResponse.json({ message: 'Failed to create quiz' }, { status: 500 });
@@ -180,3 +206,4 @@ export async function GET() {
     return NextResponse.json({ message: 'Failed to fetch quizzes', error: errorMessage }, { status: 500 });
   }
 }
+

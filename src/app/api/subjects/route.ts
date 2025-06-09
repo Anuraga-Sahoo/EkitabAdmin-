@@ -16,6 +16,7 @@ export async function GET() {
         name: rest.name,
         createdAt: rest.createdAt,
         updatedAt: rest.updatedAt,
+        associatedChapterIds: rest.associatedChapterIds || [], // Ensure the field is returned
       } as SubjectItem;
     });
 

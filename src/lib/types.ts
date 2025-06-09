@@ -79,6 +79,7 @@ export type ClassItem = {
   name: string;
   createdAt: Date;
   updatedAt?: Date;
+  associatedSubjectIds?: string[]; // Stores Subject IDs linked through quizzes
 };
 
 export type SubjectItem = {
@@ -86,6 +87,7 @@ export type SubjectItem = {
   name: string;
   createdAt: Date;
   updatedAt?: Date;
+  associatedChapterIds?: string[]; // Stores Chapter IDs linked through quizzes
 };
 
 export type ChapterItem = {
