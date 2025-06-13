@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import TiptapEditor from '@/components/editor/TiptapEditor';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, FileText, Edit, Trash2, Eye, XCircle, PlusCircle, Ban } from "lucide-react";
+import { Loader2, Send, FileText, Edit, Trash2, Eye, XCircle, PlusCircle, Ban, Save } from "lucide-react";
 import type { NotificationItem } from '@/lib/types';
 import { format } from 'date-fns';
 import {
@@ -297,3 +297,4 @@ export default function ManageNotificationsPage() {
     </div>
   );
 }
+
