@@ -3,15 +3,16 @@
 
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import LinkExtension from '@tiptap/extension-link';
 import {
-  Bold, Italic, Strikethrough, List, ListOrdered, Heading2, Quote, Code, Minus
+  Bold, Italic, Strikethrough, List, ListOrdered, Heading2, Quote, Code, Minus, Link as LinkIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import type {useEffect} from 'react'; // Added React for useEffect
-import { useEffect as useReactEffect } from 'react';
+import type {useEffect} from 'react'; 
+import { useEffect as useReactEffect, useCallback } from 'react';
 
 
 interface TiptapEditorProps {
@@ -24,6 +25,23 @@ const TiptapToolbar = ({ editor }: { editor: Editor | null }) => {
   if (!editor) {
     return null;
   }
+
+  const setLink = useCallback(() => {
+    const previousUrl = editor.getAttributes('link').href;
+    const url = window.prompt('URL', previousUrl);
+
+    if (url === null) {
+      return;
+    }
+
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
+
 
   return (
     <div className="border border-input bg-transparent rounded-t-md p-2 flex flex-wrap items-center gap-1">
@@ -69,6 +87,18 @@ const TiptapToolbar = ({ editor }: { editor: Editor | null }) => {
           className="data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
         >
           <Heading2 className="h-4 w-4" />
+        </ToggleGroupItem>
+      </ToggleGroup>
+      <Separator orientation="vertical" className="h-6 mx-1" />
+      <ToggleGroup type="single" size="sm">
+        <ToggleGroupItem
+            value="link"
+            aria-label="Toggle link"
+            onClick={setLink}
+            data-active={editor.isActive('link')}
+            className="data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
+          >
+            <LinkIcon className="h-4 w-4" />
         </ToggleGroupItem>
       </ToggleGroup>
        <Separator orientation="vertical" className="h-6 mx-1" />
@@ -153,8 +183,17 @@ export default function TiptapEditor({ content, onChange, className }: TiptapEdi
             },
         },
       }),
+      LinkExtension.configure({
+        openOnClick: false, // Recommended to prevent accidental navigation during editing
+        autolink: true,
+        HTMLAttributes: {
+          // You can add attributes like rel, target here
+          // Example: target: '_blank', rel: 'noopener noreferrer nofollow',
+          class: 'text-primary underline hover:text-primary/80',
+        },
+      }),
     ],
-    content: content, // For initial content
+    content: content, 
     editorProps: {
       attributes: {
         class: cn(
@@ -171,12 +210,8 @@ export default function TiptapEditor({ content, onChange, className }: TiptapEdi
 
   useReactEffect(() => {
     if (editor && editor.isEditable && editor.getHTML() !== content) {
-      // Use a timeout to ensure that the editor is fully initialized
-      // and to avoid potential race conditions when setting content.
-      // This is particularly helpful if `content` might change rapidly
-      // or immediately after editor initialization.
       const timer = setTimeout(() => {
-         editor.commands.setContent(content, false); // false to prevent firing onUpdate
+         editor.commands.setContent(content, false); 
       }, 0);
       return () => clearTimeout(timer);
     }
