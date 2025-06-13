@@ -1,7 +1,7 @@
 
 // src/lib/mongodb.ts
 import { MongoClient, Db, Collection } from 'mongodb';
-import type { Quiz, User, Exam, ClassItem, SubjectItem, ChapterItem } from './types';
+import type { Quiz, User, Exam, ClassItem, SubjectItem, ChapterItem, NotificationItem } from './types';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'database'; // Default to 'database' if not set
@@ -41,6 +41,7 @@ interface DatabaseCollections {
   classesCollection: Collection<Omit<ClassItem, '_id'>>;
   subjectsCollection: Collection<Omit<SubjectItem, '_id'>>;
   chaptersCollection: Collection<Omit<ChapterItem, '_id'>>;
+  notificationsCollection: Collection<Omit<NotificationItem, '_id'>>;
 }
 
 export async function connectToDatabase(): Promise<DatabaseCollections> {
@@ -54,6 +55,7 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
       classesCollection: cachedDb.collection<Omit<ClassItem, '_id'>>('classes'),
       subjectsCollection: cachedDb.collection<Omit<SubjectItem, '_id'>>('subjects'),
       chaptersCollection: cachedDb.collection<Omit<ChapterItem, '_id'>>('chapters'),
+      notificationsCollection: cachedDb.collection<Omit<NotificationItem, '_id'>>('notifications'),
     };
   }
 
@@ -75,6 +77,7 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
   const classesCollection = db.collection<Omit<ClassItem, '_id'>>('classes');
   const subjectsCollection = db.collection<Omit<SubjectItem, '_id'>>('subjects');
   const chaptersCollection = db.collection<Omit<ChapterItem, '_id'>>('chapters');
+  const notificationsCollection = db.collection<Omit<NotificationItem, '_id'>>('notifications');
 
-  return { client, db, quizzesCollection, usersCollection, examsCollection, classesCollection, subjectsCollection, chaptersCollection };
+  return { client, db, quizzesCollection, usersCollection, examsCollection, classesCollection, subjectsCollection, chaptersCollection, notificationsCollection };
 }

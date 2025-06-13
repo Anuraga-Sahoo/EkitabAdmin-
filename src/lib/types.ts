@@ -98,3 +98,11 @@ export type ChapterItem = {
   quizIds?: string[]; // Array of Quiz IDs associated with this chapter
 };
 
+export type NotificationItem = {
+  _id: string;
+  title: string;
+  contentHTML: string; // HTML content from Tiptap editor
+  createdAt: Date;
+  updatedAt?: Date;
+  // Add other fields like targetAudience, status if needed later
+};
