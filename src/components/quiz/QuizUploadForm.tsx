@@ -260,23 +260,28 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   }, []);
   
   const handleRemoveQuestionInSection = useCallback((sectionIndex: number, questionIndex: number) => {
-    setSections(prevSections =>
-      prevSections.map((section, sIndex) => {
-        if (sIndex === sectionIndex) {
-          if (section.questions.length > 1) {
+    const targetSection = sections[sectionIndex];
+
+    if (targetSection && targetSection.questions.length <= 1) {
+      toast({
+        title: "Cannot remove",
+        description: "A section must have at least one question.",
+        variant: "destructive",
+      });
+    } else {
+      setSections(prevSections =>
+        prevSections.map((section, sIndex) => {
+          if (sIndex === sectionIndex) {
             return {
               ...section,
               questions: section.questions.filter((_, qIndex) => qIndex !== questionIndex),
             };
-          } else {
-            toast({ title: "Cannot remove", description: "A section must have at least one question.", variant: "destructive" });
-            return section; 
           }
-        }
-        return section;
-      })
-    );
-  }, [toast]);
+          return section;
+        })
+      );
+    }
+  }, [sections, toast]);
 
 
   const associateQuizWithExam = async (quizIdToAssociate: string, examIdToAssociate: string) => {
