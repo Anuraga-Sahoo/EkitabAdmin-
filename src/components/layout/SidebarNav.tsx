@@ -15,7 +15,7 @@ const navItems = [
   { href: '/subjects', label: 'Manage Subjects', icon: BookText },
   { href: '/chapters', label: 'Manage Chapters', icon: Bookmark },
   { href: '/users', label: 'Users', icon: Users },
-  { href: '/notifications/create', label: 'Create Notification', icon: Megaphone },
+  { href: '/notifications/create', label: 'Manage Notifications', icon: Megaphone },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -41,3 +41,4 @@ export function SidebarNav() {
     </SidebarMenu>
   );
 }
+
