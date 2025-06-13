@@ -7,9 +7,12 @@ import {
   Bold, Italic, Strikethrough, List, ListOrdered, Heading2, Quote, Code, Minus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'; // Assuming ToggleGroup is available
-import { Separator } from '@/components/ui/separator'; // Assuming Separator is available
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import type {useEffect} from 'react'; // Added React for useEffect
+import { useEffect as useReactEffect } from 'react';
+
 
 interface TiptapEditorProps {
   content: string;
@@ -151,7 +154,7 @@ export default function TiptapEditor({ content, onChange, className }: TiptapEdi
         },
       }),
     ],
-    content: content,
+    content: content, // For initial content
     editorProps: {
       attributes: {
         class: cn(
@@ -165,6 +168,20 @@ export default function TiptapEditor({ content, onChange, className }: TiptapEdi
       onChange(editor.getHTML());
     },
   });
+
+  useReactEffect(() => {
+    if (editor && editor.isEditable && editor.getHTML() !== content) {
+      // Use a timeout to ensure that the editor is fully initialized
+      // and to avoid potential race conditions when setting content.
+      // This is particularly helpful if `content` might change rapidly
+      // or immediately after editor initialization.
+      const timer = setTimeout(() => {
+         editor.commands.setContent(content, false); // false to prevent firing onUpdate
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [content, editor]);
+
 
   return (
     <div className="flex flex-col">
