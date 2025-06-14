@@ -109,8 +109,13 @@ export function QuestionEditor({
 
   const handleMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const valueString = e.target.value;
-    const value = valueString === '' ? 0 : parseFloat(valueString); // Use parseFloat
-    setMarks(isNaN(value) || value < 0 ? 0 : value);
+    if (valueString === '') {
+      setMarks(1); // Default to 1 if input is empty
+      return;
+    }
+    const value = parseFloat(valueString);
+    // If parsing fails (isNaN) or value is not positive, set to 1. Otherwise, use the parsed value.
+    setMarks(isNaN(value) || value <= 0 ? 1 : value);
   };
   
   const handleNegativeMarksChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +170,7 @@ export function QuestionEditor({
               value={marks}
               onChange={handleMarksChange}
               placeholder="e.g., 4 or 2.5"
-              min="0"
+              min="0.01" // Technically, validation is > 0, so min 0.01 or 1 depending on step
               step="any" 
             />
           </div>
@@ -251,3 +256,4 @@ export function QuestionEditor({
     </Card>
   );
 }
+
