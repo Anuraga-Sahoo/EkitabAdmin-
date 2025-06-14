@@ -28,6 +28,8 @@ export async function GET(
       contentHTML: notificationDoc.contentHTML,
       createdAt: notificationDoc.createdAt,
       updatedAt: notificationDoc.updatedAt,
+      userIds: notificationDoc.userIds || [],
+      isRead: notificationDoc.isRead || [],
     };
 
     return NextResponse.json(notification, { status: 200 });
@@ -46,7 +48,7 @@ export async function PUT(
   try {
     const notificationId = params.notificationId;
     const body = await request.json();
-    const { title, contentHTML } = body;
+    const { title, contentHTML } = body; // Note: userIds and isRead are not updated here intentionally
 
     if (!notificationId || !ObjectId.isValid(notificationId)) {
       return NextResponse.json({ message: 'Invalid Notification ID provided.' }, { status: 400 });
@@ -60,7 +62,7 @@ export async function PUT(
 
     const { notificationsCollection } = await connectToDatabase();
     
-    const updateData: Partial<Omit<NotificationItem, '_id' | 'createdAt'>> = {
+    const updateData: Partial<Pick<NotificationItem, 'title' | 'contentHTML' | 'updatedAt'>> = {
       title: title.trim(),
       contentHTML: contentHTML,
       updatedAt: new Date(),

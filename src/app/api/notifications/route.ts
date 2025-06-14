@@ -10,14 +10,15 @@ export async function GET() {
     const notificationsFromDb = await notificationsCollection.find({}).sort({ createdAt: -1 }).toArray();
 
     const notifications: NotificationItem[] = notificationsFromDb.map(doc => {
-      const { _id, ...rest } = doc;
       return {
-        _id: _id.toHexString(),
-        title: rest.title,
-        contentHTML: rest.contentHTML,
-        createdAt: rest.createdAt,
-        updatedAt: rest.updatedAt,
-      } as NotificationItem;
+        _id: doc._id.toHexString(),
+        title: doc.title,
+        contentHTML: doc.contentHTML,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        userIds: doc.userIds || [], 
+        isRead: doc.isRead || [], 
+      };
     });
 
     return NextResponse.json(notifications, { status: 200 });

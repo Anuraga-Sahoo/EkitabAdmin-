@@ -104,5 +104,8 @@ export type NotificationItem = {
   contentHTML: string; // HTML content from Tiptap editor
   createdAt: Date;
   updatedAt?: Date;
+  userIds: string[]; // Array of user IDs the notification is for
+  isRead: { userId: string; read: boolean }[]; // Tracks read status for each user
   // Add other fields like targetAudience, status if needed later
 };
+

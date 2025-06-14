@@ -16,15 +16,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Notification content is required and cannot be empty.' }, { status: 400 });
     }
     
-    const { notificationsCollection } = await connectToDatabase();
+    const { notificationsCollection, usersCollection } = await connectToDatabase();
+
+    // Fetch all users to get their IDs
+    const allUsers = await usersCollection.find({}, { projection: { _id: 1 } }).toArray();
+    const userIds = allUsers.map(user => user._id.toHexString());
+    const isReadStatus = userIds.map(uid => ({ userId: uid, read: false }));
 
     const newNotification: Omit<NotificationItem, '_id' | 'updatedAt'> = {
       title: title.trim(),
       contentHTML: contentHTML, // Store HTML directly
       createdAt: new Date(),
+      userIds: userIds,
+      isRead: isReadStatus,
     };
 
-    const result = await notificationsCollection.insertOne(newNotification);
+    const result = await notificationsCollection.insertOne(newNotification as any); // Cast as any because Omit doesn't perfectly match what MongoDB expects for insertOne
 
     if (result.insertedId) {
         return NextResponse.json({ 
