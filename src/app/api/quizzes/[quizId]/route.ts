@@ -3,7 +3,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import type { QuizStatus, Quiz, QuizFormData, Question, Section } from '@/lib/types';
+import type { QuizStatus, Quiz, QuizFormData, Question, Section, Exam } from '@/lib/types';
 
 // Helper to adapt old quiz structure (direct questions array) to new sections structure
 function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
@@ -48,7 +48,7 @@ function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
   return {
     ...rest,
     sections: finalSections,
-  } as Omit<Quiz, '_id'>; // Cast needed as 'rest' might not fully match
+  } as Omit<Quiz, '_id'>; 
 }
 
 
@@ -73,11 +73,13 @@ export async function GET(
 
     const quiz: Quiz = {
       _id: quizDoc._id.toHexString(),
-      title: quizDoc.title, // ensure top level fields are directly from quizDoc
+      title: quizDoc.title, 
       testType: quizDoc.testType,
-      classType: quizDoc.classType,
-      subject: quizDoc.subject,
-      chapter: quizDoc.chapter,
+      classId: quizDoc.classId,
+      subjectId: quizDoc.subjectId,
+      chapterId: quizDoc.chapterId,
+      associatedExamId: quizDoc.associatedExamId,
+      associatedExamName: quizDoc.associatedExamName,
       tags: quizDoc.tags,
       timerMinutes: quizDoc.timerMinutes,
       sections: adaptedQuizData.sections,
@@ -107,7 +109,15 @@ export async function PUT(
       return NextResponse.json({ message: 'Invalid Quiz ID provided.' }, { status: 400 });
     }
 
-    const { quizzesCollection } = await connectToDatabase();
+    const { quizzesCollection, examsCollection } = await connectToDatabase();
+    
+    // Fetch current quiz to compare associatedExamId
+    const currentQuizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
+    if (!currentQuizDoc) {
+      return NextResponse.json({ message: 'Quiz not found for update.' }, { status: 404 });
+    }
+    const currentAssociatedExamId = currentQuizDoc.associatedExamId;
+
 
     // Handle simple status update
     if (body.status && Object.keys(body).length === 1) {
@@ -124,8 +134,8 @@ export async function PUT(
       return NextResponse.json({ message: 'Quiz status updated successfully', quizId }, { status: 200 });
     }
 
-    // Handle full quiz update (with sections)
-    const quizData = body as Omit<QuizFormData, 'questions'> & { sections: Array<Omit<Section, 'questions'> & { questions: Array<Omit<Question, 'options'> & { options: Array<Option> }> }> };
+    // Handle full quiz update
+    const quizData = body as Omit<QuizFormData, 'questions'> & { sections: Array<Omit<Section, 'questions'> & { questions: Array<Omit<Question, 'options'> & { options: Array<OptionType> }> }> };
 
     if (!quizData.title || !quizData.testType || !quizData.sections || quizData.sections.length === 0) {
       return NextResponse.json({ message: 'Invalid quiz data for update. Title, Test Type, and Sections are required.' }, { status: 400 });
@@ -146,7 +156,7 @@ export async function PUT(
       }
       return {
         ...section,
-        id: section.id || new ObjectId().toHexString(), // Preserve existing ID or generate new
+        id: section.id || new ObjectId().toHexString(), 
         questions: section.questions.map(q => {
           if (q.marks === undefined || typeof q.marks !== 'number' || q.marks <= 0) {
             throw new Error(`Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must have positive marks.`);
@@ -156,12 +166,12 @@ export async function PUT(
           }
           return {
             ...q,
-            id: q.id || new ObjectId().toHexString(), // Preserve existing ID or generate new
+            id: q.id || new ObjectId().toHexString(), 
             marks: q.marks,
             negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks,
             options: q.options.map(opt => ({
               ...opt,
-              id: opt.id || new ObjectId().toHexString(), // Preserve existing ID or generate new
+              id: opt.id || new ObjectId().toHexString(), 
             })),
           };
         }),
@@ -169,13 +179,14 @@ export async function PUT(
     });
 
 
-    const quizToUpdate = {
+    const quizToUpdatePayload = {
       ...quizData,
       sections: processedSections,
       updatedAt: new Date(),
     };
     
-    const { _id, ...updateData } = quizToUpdate as any; // _id is not part of QuizFormData, but might be on body for PUT
+    // Remove _id if it exists in quizData to prevent trying to update it.
+    const { _id, ...updateData } = quizToUpdatePayload as any; 
 
     const result = await quizzesCollection.updateOne(
       { _id: new ObjectId(quizId) },
@@ -185,6 +196,27 @@ export async function PUT(
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: 'Quiz not found for update.' }, { status: 404 });
     }
+    
+    // Handle exam association changes
+    const newAssociatedExamId = quizData.associatedExamId;
+
+    if (currentAssociatedExamId !== newAssociatedExamId) {
+      // Remove from old exam if it existed
+      if (currentAssociatedExamId && ObjectId.isValid(currentAssociatedExamId)) {
+        await examsCollection.updateOne(
+          { _id: new ObjectId(currentAssociatedExamId) },
+          { $pull: { quizIds: quizId } }
+        );
+      }
+      // Add to new exam if it exists
+      if (newAssociatedExamId && ObjectId.isValid(newAssociatedExamId)) {
+        await examsCollection.updateOne(
+          { _id: new ObjectId(newAssociatedExamId) },
+          { $addToSet: { quizIds: quizId } }
+        );
+      }
+    }
+
 
     return NextResponse.json({ message: 'Quiz updated successfully', quizId }, { status: 200 });
 
@@ -206,7 +238,18 @@ export async function DELETE(
       return NextResponse.json({ message: 'Invalid Quiz ID provided.' }, { status: 400 });
     }
 
-    const { quizzesCollection } = await connectToDatabase();
+    const { quizzesCollection, examsCollection } = await connectToDatabase();
+    
+    // Before deleting quiz, remove its ID from any associated exam
+    const quizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
+    if (quizDoc && quizDoc.associatedExamId && ObjectId.isValid(quizDoc.associatedExamId)) {
+        await examsCollection.updateOne(
+            { _id: new ObjectId(quizDoc.associatedExamId) },
+            { $pull: { quizIds: quizId } }
+        );
+    }
+    // Note: Similar logic could be added for chapters, classes, subjects if quizIds are stored there and need cleanup.
+
     const result = await quizzesCollection.deleteOne({ _id: new ObjectId(quizId) });
 
     if (result.deletedCount === 1) {

@@ -35,6 +35,8 @@ export type Quiz = {
   classId?: string; // Stores MongoDB ObjectId of the selected ClassItem
   subjectId?: string; // Stores MongoDB ObjectId of the selected SubjectItem
   chapterId?: string; // Stores MongoDB ObjectId of the selected ChapterItem
+  associatedExamId?: string; // Stores MongoDB ObjectId of the selected Exam
+  associatedExamName?: string; // Stores the name of the selected Exam
   tags?: string[];
   timerMinutes?: number; // Overall quiz timer
   sections: Section[]; // Questions are now within sections
@@ -48,6 +50,8 @@ export type QuizFormData = Omit<Quiz, '_id' | 'sections' | 'createdAt' | 'update
   classId?: string;
   subjectId?: string;
   chapterId?: string;
+  associatedExamId?: string;
+  associatedExamName?: string;
   sections: Array<Omit<Section, 'id' | 'questions'> & {
     id?: string; // Allow id for existing sections
     questions: Array<Omit<Question, 'id' | 'options'> & {
@@ -108,4 +112,3 @@ export type NotificationItem = {
   isRead: { userId: string; read: boolean }[]; // Tracks read status for each user
   // Add other fields like targetAudience, status if needed later
 };
-

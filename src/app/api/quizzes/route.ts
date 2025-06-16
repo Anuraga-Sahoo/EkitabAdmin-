@@ -2,7 +2,7 @@
 // src/app/api/quizzes/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { QuizFormData, Quiz, Question, Section, ChapterItem, ClassItem, SubjectItem } from '@/lib/types';
+import type { QuizFormData, Quiz, Question, Section, ChapterItem, ClassItem, SubjectItem, Exam } from '@/lib/types';
 import { ObjectId } from 'mongodb';
 
 // Helper to adapt old quiz structure (direct questions array) to new sections structure
@@ -50,8 +50,10 @@ function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
     classId: rest.classId,
     subjectId: rest.subjectId,
     chapterId: rest.chapterId,
+    associatedExamId: rest.associatedExamId,
+    associatedExamName: rest.associatedExamName,
     sections: finalSections,
-  } as Omit<Quiz, '_id'>; // Cast needed as 'rest' doesn't know about sections
+  } as Omit<Quiz, '_id'>; 
 }
 
 
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
       }
       return {
         ...section,
-        id: section.id || new ObjectId().toHexString(), // Use existing ID or generate new for section
+        id: section.id || new ObjectId().toHexString(), 
         questions: section.questions.map(q => {
           const marks = q.marks === undefined ? 1 : parseFloat(String(q.marks));
           const negativeMarks = q.negativeMarks === undefined ? 0 : parseFloat(String(q.negativeMarks));
@@ -91,19 +93,19 @@ export async function POST(request: NextRequest) {
           }
           return {
             ...q,
-            id: q.id || new ObjectId().toHexString(), // Use existing ID or generate new for question
+            id: q.id || new ObjectId().toHexString(), 
             marks: marks, 
             negativeMarks: negativeMarks, 
             options: q.options.map(opt => ({
               ...opt,
-              id: opt.id || new ObjectId().toHexString(), // Use existing ID or generate new for option
+              id: opt.id || new ObjectId().toHexString(), 
             })),
           };
         }),
       };
     });
 
-    const { quizzesCollection, chaptersCollection, classesCollection, subjectsCollection } = await connectToDatabase();
+    const { quizzesCollection, chaptersCollection, classesCollection, subjectsCollection, examsCollection } = await connectToDatabase();
 
     const quizToInsert: Omit<Quiz, '_id'> = {
       title: quizData.title,
@@ -111,6 +113,8 @@ export async function POST(request: NextRequest) {
       classId: quizData.classId,
       subjectId: quizData.subjectId,
       chapterId: quizData.chapterId,
+      associatedExamId: quizData.associatedExamId,
+      associatedExamName: quizData.associatedExamName,
       tags: quizData.tags,
       timerMinutes: quizData.timerMinutes,
       sections: processedSections,
@@ -160,6 +164,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Link quizId to Exam if associatedExamId is present
+      if (quizData.associatedExamId && ObjectId.isValid(quizData.associatedExamId)) {
+        try {
+          await examsCollection.updateOne(
+            { _id: new ObjectId(quizData.associatedExamId) },
+            { $addToSet: { quizIds: newQuizId } }
+          );
+        } catch (examUpdateError) {
+          console.error('Failed to update exam with new quizId:', examUpdateError);
+        }
+      }
+
       return NextResponse.json({ message: 'Quiz created successfully', quizId: newQuizId }, { status: 201 });
     } else {
       return NextResponse.json({ message: 'Failed to create quiz' }, { status: 500 });
@@ -190,6 +206,8 @@ export async function GET() {
         classId: rest.classId, 
         subjectId: rest.subjectId,
         chapterId: rest.chapterId,
+        associatedExamId: rest.associatedExamId,
+        associatedExamName: rest.associatedExamName,
         status: rest.status,
         createdAt: rest.createdAt,
         updatedAt: rest.updatedAt,
@@ -206,4 +224,3 @@ export async function GET() {
     return NextResponse.json({ message: 'Failed to fetch quizzes', error: errorMessage }, { status: 500 });
   }
 }
-

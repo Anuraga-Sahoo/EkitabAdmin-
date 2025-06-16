@@ -80,6 +80,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [examsList, setExamsList] = useState<Exam[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>(NONE_VALUE);
+  const [selectedExamName, setSelectedExamName] = useState<string>('');
+
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -100,6 +102,8 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       setClassId(initialQuizData.classId || '');
       setSubjectId(initialQuizData.subjectId || '');
       setChapterId(initialQuizData.chapterId || '');
+      setSelectedExamId(initialQuizData.associatedExamId || NONE_VALUE);
+      setSelectedExamName(initialQuizData.associatedExamName || '');
       
       setTags((initialQuizData.tags || []).join(', '));
       setOverallTimerMinutes(initialQuizData.timerMinutes?.toString() || '');
@@ -198,6 +202,16 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   const isPracticeTest = testType === 'Practice Test';
   const showExamDropdown = testType === 'Mock' || testType === 'Previous Year';
 
+  const handleExamSelection = (examId: string) => {
+    setSelectedExamId(examId);
+    if (examId === NONE_VALUE || examId === '') {
+      setSelectedExamName('');
+    } else {
+      const selectedExamObject = examsList.find(exam => exam._id === examId);
+      setSelectedExamName(selectedExamObject ? selectedExamObject.name : '');
+    }
+  };
+
   const handleAddSection = () => {
     const newSectionId = generateSectionClientId();
     setSections([...sections, { 
@@ -259,7 +273,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
     );
   }, []);
   
-  const handleRemoveQuestionInSection = useCallback((sectionIndex: number, questionIndex: number) => {
+ const handleRemoveQuestionInSection = useCallback((sectionIndex: number, questionIndex: number) => {
     const targetSection = sections[sectionIndex];
 
     if (targetSection && targetSection.questions.length <= 1) {
@@ -284,11 +298,11 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
   }, [sections, toast]);
 
 
-  const associateQuizWithExam = async (quizIdToAssociate: string, examIdToAssociate: string) => {
+  const associateQuizWithExamDb = async (quizIdToAssociate: string, examIdToAssociate: string) => {
     if (!quizIdToAssociate || examIdToAssociate === NONE_VALUE || examIdToAssociate === '') return;
     try {
       const response = await fetch(`/api/exams/${examIdToAssociate}`, {
-        method: 'PUT',
+        method: 'PUT', // Assuming PUT is for associating, check your API route. PATCH might be more appropriate if exam has other updatable fields
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quizId: quizIdToAssociate }),
       });
@@ -296,10 +310,11 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
         const errorResult = await response.json();
         throw new Error(errorResult.message || 'Failed to associate quiz with exam.');
       }
-      toast({ title: 'Exam Association', description: 'Quiz successfully associated with the selected exam.' });
+      // No toast here, main toast in handleSubmit will cover it
     } catch (error) {
       console.error('Failed to associate quiz with exam:', error);
-      toast({ title: 'Exam Association Failed', description: (error instanceof Error ? error.message : 'An unknown error occurred.'), variant: 'destructive' });
+      // Throw error to be caught by handleSubmit
+      throw error;
     }
   };
 
@@ -380,7 +395,11 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       quizPayloadBase.classId = finalClassId;
       quizPayloadBase.subjectId = finalSubjectId;
       quizPayloadBase.chapterId = finalChapterId;
+    } else if (showExamDropdown && selectedExamId !== NONE_VALUE && selectedExamId !== '') {
+        quizPayloadBase.associatedExamId = selectedExamId;
+        quizPayloadBase.associatedExamName = selectedExamName;
     }
+
 
     const formData: QuizFormData | Omit<Quiz, '_id' | 'createdAt' | 'updatedAt' | 'status'> = quizPayloadBase as any;
 
@@ -436,24 +455,26 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
       if (response.ok) {
         const savedQuizId = result.quizId || quizId; 
         if (showExamDropdown && selectedExamId !== NONE_VALUE && selectedExamId !== '' && savedQuizId) {
-          await associateQuizWithExam(savedQuizId, selectedExamId);
+           // This association (adding quizId to Exam.quizIds) is handled by API now, based on associatedExamId in quiz payload
         }
+        const successMessage = isEditMode ? `Quiz "${formData.title}" updated successfully.` : `Quiz "${formData.title}" created successfully.`;
+        
         if (isEditMode) {
             if(onSuccessfulSubmit) onSuccessfulSubmit();
             else {
-                 toast({ title: 'Quiz Updated!', description: `Quiz "${(formData as Quiz).title}" has been successfully updated.` });
+                toast({ title: 'Quiz Updated!', description: successMessage });
                 router.push('/quizzes');
             }
         } else {
-            toast({ title: 'Quiz Saved!', description: `Quiz "${formData.title}" has been successfully saved.` });
+            toast({ title: 'Quiz Created!', description: successMessage });
             setQuizTitle(''); setTestType(''); 
             setClassId(''); setSubjectId(''); setChapterId('');
-            setSelectedExamId(NONE_VALUE); setTags(''); setOverallTimerMinutes(''); 
+            setSelectedExamId(NONE_VALUE); setSelectedExamName(''); setTags(''); setOverallTimerMinutes(''); 
             const newSId = generateSectionClientId();
             setSections([{ ...initialSectionState, id: newSId, clientId: newSId, name: "Section 1" }]);
         }
       } else {
-        toast({ title: isEditMode ? 'Error Updating Quiz' : 'Error Saving Quiz', description: result.message || 'An unknown error occurred.', variant: 'destructive' });
+        toast({ title: isEditMode ? 'Error Updating Quiz' : 'Error Creating Quiz', description: result.message || 'An unknown error occurred.', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -488,7 +509,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
             </div>
             <div className="space-y-2">
               <Label htmlFor="testType" className="font-semibold">Test Type</Label>
-              <Select value={testType} onValueChange={(value) => { setTestType(value as any); if (value === 'Practice Test') setSelectedExamId(NONE_VALUE); }} required >
+              <Select value={testType} onValueChange={(value) => { setTestType(value as any); if (value === 'Practice Test') { setSelectedExamId(NONE_VALUE); setSelectedExamName('');} }} required >
                 <SelectTrigger id="testType"><SelectValue placeholder="Select test type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Previous Year">Previous Year Test</SelectItem>
@@ -502,7 +523,7 @@ export function QuizUploadForm({ initialQuizData, quizId, onSuccessfulSubmit }: 
           {showExamDropdown && (
              <div className="space-y-2 pt-4 border-t mt-4">
               <Label htmlFor="examType" className="font-semibold">Exam Association</Label>
-              <Select value={selectedExamId} onValueChange={(value) => setSelectedExamId(value as any)} disabled={examsList.length === 0} >
+              <Select value={selectedExamId} onValueChange={handleExamSelection} disabled={examsList.length === 0} >
                 <SelectTrigger id="examType"><SelectValue placeholder={examsList.length === 0 ? "No exams available" : "Select exam (optional)"} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_VALUE}>None</SelectItem>
