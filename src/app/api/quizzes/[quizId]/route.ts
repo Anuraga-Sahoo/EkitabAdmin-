@@ -1,10 +1,9 @@
-
 // src/app/api/quizzes/[quizId]/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import type { QuizStatus, Quiz, QuizFormData, Question, Section, Exam } from '@/lib/types';
-import { uploadDataUriToCloudinary } from '@/lib/cloudinary';
+import { uploadOnCloudinary } from '@/lib/cloudinary';
 
 // Helper to check if a string is a data URI
 const isDataURI = (uri: string) => uri.startsWith('data:image');
@@ -145,7 +144,7 @@ export async function PUT(
     for (const section of quizData.sections) {
       for (const question of section.questions) {
         if (question.imageUrl && isDataURI(question.imageUrl)) {
-          const uploadResult = await uploadDataUriToCloudinary(question.imageUrl);
+          const uploadResult = await uploadOnCloudinary(question.imageUrl);
           if (uploadResult?.secure_url) {
             question.imageUrl = uploadResult.secure_url;
           } else {
@@ -154,7 +153,7 @@ export async function PUT(
         }
         for (const option of question.options) {
           if (option.imageUrl && isDataURI(option.imageUrl)) {
-             const uploadResult = await uploadDataUriToCloudinary(option.imageUrl);
+             const uploadResult = await uploadOnCloudinary(option.imageUrl);
              if (uploadResult?.secure_url) {
                 option.imageUrl = uploadResult.secure_url;
              } else {

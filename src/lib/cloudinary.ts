@@ -12,20 +12,25 @@ export const uploadOnCloudinary = async (localFilePath: string, folder: string =
   try {
     if (!localFilePath) return null;
     
+    // The uploader can directly handle local file paths and data URIs.
     const uploadResult = await cloudinary.uploader.upload(localFilePath, {
       folder: folder,
       resource_type: "auto",
     });
     
-    // File has been uploaded successfully, now remove the locally saved temporary file
-    await fs.unlink(localFilePath);
+    // If the input was a local file path (not a data URI), delete it.
+    if (!localFilePath.startsWith('data:')) {
+      await fs.unlink(localFilePath);
+    }
     return uploadResult;
   } catch (error) {
-    // Remove the locally saved temporary file as the upload operation got failed
-    try {
-        await fs.unlink(localFilePath);
-    } catch (unlinkError) {
-        console.error('Error deleting temporary file after failed upload:', unlinkError);
+    // If it was a file path, attempt to unlink it even on failure.
+    if (!localFilePath.startsWith('data:')) {
+      try {
+          await fs.unlink(localFilePath);
+      } catch (unlinkError) {
+          console.error('Error deleting temporary file after failed upload:', unlinkError);
+      }
     }
     console.error('Cloudinary Upload Error:', error);
     return null;
