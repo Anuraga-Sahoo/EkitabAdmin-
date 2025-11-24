@@ -33,7 +33,7 @@ export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps)
         setPreview(result);
         setAiTags([]); // Reset tags for new image
         // Inform parent about the new image (without tags yet, or with empty tags)
-        // onImageUploaded(result, []); 
+        onImageUploaded(result, []); 
       };
       reader.readAsDataURL(selectedFile);
     } else {
