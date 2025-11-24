@@ -1,3 +1,4 @@
+
 // src/app/api/quizzes/[quizId]/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
@@ -139,33 +140,37 @@ export async function PUT(
     const quizData = body as QuizFormData;
 
     // --- Image Deletion Logic ---
-    const publicIdsToDelete: string[] = [];
-    const currentImagesMap = new Map<string, string>(); // Map of publicId -> 'exists'
-    
+    const publicIdsToDelete = new Set<string>();
+    const newPublicIds = new Set<string>();
+
+    // Get all public IDs from the old document
     (currentQuizDoc.sections || []).forEach(sec => {
         (sec.questions || []).forEach(q => {
-            if (q.publicId) currentImagesMap.set(q.publicId, 'exists');
+            if (q.publicId) publicIdsToDelete.add(q.publicId);
             (q.options || []).forEach(opt => {
-                if (opt.publicId) currentImagesMap.set(opt.publicId, 'exists');
+                if (opt.publicId) publicIdsToDelete.add(opt.publicId);
             });
         });
     });
 
+    // Go through the new data. If an image is kept, remove its publicId from the deletion set.
     (quizData.sections || []).forEach(sec => {
         (sec.questions || []).forEach(q => {
-            if (q.publicId) currentImagesMap.delete(q.publicId);
+            if (q.publicId) {
+                newPublicIds.add(q.publicId);
+            }
             (q.options || []).forEach(opt => {
-                if (opt.publicId) currentImagesMap.delete(opt.publicId);
+                if (opt.publicId) {
+                    newPublicIds.add(opt.publicId);
+                }
             });
         });
     });
     
-    currentImagesMap.forEach((_, publicId) => {
-        publicIdsToDelete.push(publicId);
-    });
+    newPublicIds.forEach(id => publicIdsToDelete.delete(id));
 
-    if (publicIdsToDelete.length > 0) {
-        deleteMultipleFromCloudinary(publicIdsToDelete).catch(err => {
+    if (publicIdsToDelete.size > 0) {
+        deleteMultipleFromCloudinary(Array.from(publicIdsToDelete)).catch(err => {
             console.error("Failed to delete old images from Cloudinary, but continuing with quiz update:", err);
         });
     }
