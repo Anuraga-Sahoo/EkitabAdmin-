@@ -113,13 +113,10 @@ export async function PUT(
 
     const { quizzesCollection, examsCollection } = await connectToDatabase();
     
-    // Fetch current quiz to handle image deletions and exam association changes
     const currentQuizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
     if (!currentQuizDoc) {
       return NextResponse.json({ message: 'Quiz not found for update.' }, { status: 404 });
     }
-    const currentAssociatedExamId = currentQuizDoc.associatedExamId;
-
 
     // Handle simple status update
     if (body.status && Object.keys(body).length === 1) {
@@ -132,7 +129,6 @@ export async function PUT(
         { $set: { status: status, updatedAt: new Date() } }
       );
       if (result.matchedCount === 0) return NextResponse.json({ message: 'Quiz not found.' }, { status: 404 });
-      if (result.modifiedCount === 0) return NextResponse.json({ message: 'Quiz status already up to date.', quizId }, { status: 200 });
       return NextResponse.json({ message: 'Quiz status updated successfully', quizId }, { status: 200 });
     }
 
@@ -140,42 +136,38 @@ export async function PUT(
     const quizData = body as QuizFormData;
 
     // --- Image Deletion Logic ---
-    const publicIdsToDelete = new Set<string>();
-    const newPublicIds = new Set<string>();
-
-    // Get all public IDs from the old document
-    (currentQuizDoc.sections || []).forEach(sec => {
-        (sec.questions || []).forEach(q => {
-            if (q.publicId) publicIdsToDelete.add(q.publicId);
-            (q.options || []).forEach(opt => {
-                if (opt.publicId) publicIdsToDelete.add(opt.publicId);
-            });
+    const oldPublicIds = new Set<string>();
+    (currentQuizDoc.sections || []).forEach(section => {
+      (section.questions || []).forEach(question => {
+        if (question.publicId) oldPublicIds.add(question.publicId);
+        (question.options || []).forEach(option => {
+          if (option.publicId) oldPublicIds.add(option.publicId);
         });
+      });
     });
 
-    // Go through the new data. If an image is kept, remove its publicId from the deletion set.
-    (quizData.sections || []).forEach(sec => {
-        (sec.questions || []).forEach(q => {
-            if (q.publicId) {
-                newPublicIds.add(q.publicId);
-            }
-            (q.options || []).forEach(opt => {
-                if (opt.publicId) {
-                    newPublicIds.add(opt.publicId);
-                }
-            });
+    const newPublicIdsToKeep = new Set<string>();
+    (quizData.sections || []).forEach(section => {
+      (section.questions || []).forEach(question => {
+        if (question.publicId && !isDataURI(question.imageUrl || '')) {
+          newPublicIdsToKeep.add(question.publicId);
+        }
+        (question.options || []).forEach(option => {
+          if (option.publicId && !isDataURI(option.imageUrl || '')) {
+            newPublicIdsToKeep.add(option.publicId);
+          }
         });
+      });
     });
     
-    newPublicIds.forEach(id => publicIdsToDelete.delete(id));
+    const publicIdsToDelete = Array.from(oldPublicIds).filter(id => !newPublicIdsToKeep.has(id));
 
-    if (publicIdsToDelete.size > 0) {
-        deleteMultipleFromCloudinary(Array.from(publicIdsToDelete)).catch(err => {
-            console.error("Failed to delete old images from Cloudinary, but continuing with quiz update:", err);
-        });
+    if (publicIdsToDelete.length > 0) {
+      deleteMultipleFromCloudinary(publicIdsToDelete).catch(err => {
+        console.error("Failed to delete old images from Cloudinary, but continuing with quiz update:", err);
+      });
     }
     // --- End Image Deletion Logic ---
-
 
     // Process image uploads
     for (const section of quizData.sections) {
@@ -203,48 +195,24 @@ export async function PUT(
       }
     }
 
-
     if (!quizData.title || !quizData.testType || !quizData.sections || quizData.sections.length === 0) {
       return NextResponse.json({ message: 'Invalid quiz data for update. Title, Test Type, and Sections are required.' }, { status: 400 });
     }
-    if (quizData.timerMinutes !== undefined && (typeof quizData.timerMinutes !== 'number' || quizData.timerMinutes < 0)) {
-      return NextResponse.json({ message: 'Invalid overall timer value provided.' }, { status: 400 });
-    }
     
-    const processedSections = quizData.sections.map(section => {
-      if (section.timerMinutes !== undefined && (typeof section.timerMinutes !== 'number' || section.timerMinutes < 0)) {
-        throw new Error(`Invalid timer for section "${section.name || 'Unnamed'}". Must be non-negative number.`);
-      }
-      if (section.questionLimit !== undefined && (typeof section.questionLimit !== 'number' || section.questionLimit < 0)) {
-         throw new Error(`Invalid question limit for section "${section.name || 'Unnamed'}". Must be non-negative number.`);
-      }
-      if (!section.questions || section.questions.length === 0) {
-        throw new Error(`Section "${section.name || 'Unnamed'}" must contain at least one question.`);
-      }
-      return {
-        ...section,
-        id: section.id || new ObjectId().toHexString(), 
-        questions: section.questions.map(q => {
-          if (q.marks === undefined || typeof q.marks !== 'number' || q.marks <= 0) {
-            throw new Error(`Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" must have positive marks.`);
-          }
-          if (q.negativeMarks !== undefined && (typeof q.negativeMarks !== 'number' || q.negativeMarks < 0)) {
-            throw new Error(`Question "${q.text.substring(0,20)}..." in section "${section.name || 'Unnamed'}" negative marks must be non-negative.`);
-          }
-          return {
-            ...q,
-            id: q.id || new ObjectId().toHexString(), 
-            marks: q.marks,
-            negativeMarks: q.negativeMarks === undefined ? 0 : q.negativeMarks,
-            options: q.options.map(opt => ({
-              ...opt,
-              id: opt.id || new ObjectId().toHexString(), 
-            })),
-          };
-        }),
-      };
-    });
-
+    const processedSections = quizData.sections.map(section => ({
+      ...section,
+      id: section.id || new ObjectId().toHexString(), 
+      questions: section.questions.map(q => ({
+        ...q,
+        id: q.id || new ObjectId().toHexString(), 
+        marks: parseFloat(String(q.marks)),
+        negativeMarks: q.negativeMarks === undefined ? 0 : parseFloat(String(q.negativeMarks)),
+        options: q.options.map(opt => ({
+          ...opt,
+          id: opt.id || new ObjectId().toHexString(), 
+        })),
+      })),
+    }));
 
     const quizToUpdatePayload = {
       ...quizData,
@@ -252,7 +220,6 @@ export async function PUT(
       updatedAt: new Date(),
     };
     
-    // Remove _id if it exists in quizData to prevent trying to update it.
     const { _id, ...updateData } = quizToUpdatePayload as any; 
 
     const result = await quizzesCollection.updateOne(
@@ -265,17 +232,16 @@ export async function PUT(
     }
     
     // Handle exam association changes
+    const currentAssociatedExamId = currentQuizDoc.associatedExamId;
     const newAssociatedExamId = quizData.associatedExamId;
 
     if (currentAssociatedExamId !== newAssociatedExamId) {
-      // Remove from old exam if it existed
       if (currentAssociatedExamId && ObjectId.isValid(currentAssociatedExamId)) {
         await examsCollection.updateOne(
           { _id: new ObjectId(currentAssociatedExamId) },
           { $pull: { quizIds: quizId } }
         );
       }
-      // Add to new exam if it exists
       if (newAssociatedExamId && ObjectId.isValid(newAssociatedExamId)) {
         await examsCollection.updateOne(
           { _id: new ObjectId(newAssociatedExamId) },
@@ -283,7 +249,6 @@ export async function PUT(
         );
       }
     }
-
 
     return NextResponse.json({ message: 'Quiz updated successfully', quizId }, { status: 200 });
 
@@ -307,7 +272,6 @@ export async function DELETE(
 
     const { quizzesCollection, examsCollection } = await connectToDatabase();
     
-    // Before deleting quiz, find the document to get associated image public_ids
     const quizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
     if (quizDoc) {
         const publicIdsToDelete: string[] = [];
@@ -321,13 +285,11 @@ export async function DELETE(
         });
 
         if(publicIdsToDelete.length > 0){
-            // Asynchronously delete images from Cloudinary
             deleteMultipleFromCloudinary(publicIdsToDelete).catch(err => {
                  console.error("Failed to delete images from Cloudinary on quiz deletion:", err);
             });
         }
         
-        // Remove quiz ID from any associated exam
         if (quizDoc.associatedExamId && ObjectId.isValid(quizDoc.associatedExamId)) {
             await examsCollection.updateOne(
                 { _id: new ObjectId(quizDoc.associatedExamId) },
