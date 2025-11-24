@@ -18,17 +18,19 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
   try {
     if (!fileToUpload) return null;
 
+    // The fileToUpload can be a local path or a data URI.
+    // Cloudinary's uploader can handle both directly.
     const uploadResult = await cloudinary.uploader.upload(fileToUpload, {
       folder: folder,
       resource_type: "auto",
     });
 
-    // If the input was a local file path (not a data URI), attempt to delete it.
+    // If the input was a local file path (and not a data URI), we should clean it up.
+    // This part is useful if other parts of the app upload from the filesystem.
     if (!fileToUpload.startsWith('data:')) {
       try {
         await fs.unlink(fileToUpload);
       } catch (unlinkError) {
-        // Log if the temporary file deletion fails, but don't fail the whole upload.
         console.warn(`Failed to delete temporary file: ${fileToUpload}`, unlinkError);
       }
     }
@@ -37,15 +39,16 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
   } catch (error) {
     console.error('Cloudinary Upload Error:', error);
     
-    // If it was a file path that failed to upload, still try to clean up.
-    if (!fileToUpload.startsWith('data:')) {
+    // Attempt to clean up local file even on failed upload
+    if (fileToUpload && !fileToUpload.startsWith('data:')) {
       try {
         await fs.unlink(fileToUpload);
       } catch (unlinkError) {
-        console.error('Error deleting temporary file after failed upload:', unlinkError);
+        // Suppress unlink error after an upload failure to prioritize the upload error.
       }
     }
-    return null;
+    // We re-throw the error so the calling function knows the upload failed.
+    throw new Error('Cloudinary upload failed.');
   }
 };
 
