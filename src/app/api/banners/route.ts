@@ -2,24 +2,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { uploadOnCloudinary } from '@/lib/cloudinary';
-import multer from 'multer';
 import type { Banner } from '@/lib/types';
-import { promisify } from 'util';
-
-// Configure multer for file storage
-const upload = multer({ dest: '/tmp' });
-
-// Helper to run multer middleware
-const runMiddleware = (req: NextRequest, res: NextResponse, fn: any) => {
-    return new Promise((resolve, reject) => {
-        fn(req, res, (result: any) => {
-            if (result instanceof Error) {
-                return reject(result);
-            }
-            return resolve(result);
-        });
-    });
-};
+import path from 'path';
+import fs from 'fs/promises';
 
 export const config = {
   api: {
@@ -27,17 +12,26 @@ export const config = {
   },
 };
 
-export async function POST(request: any) {
+export async function POST(request: NextRequest) {
   try {
-    await runMiddleware(request, new NextResponse(), promisify(upload.single('bannerImage')));
-    const file = request.file;
+    const formData = await request.formData();
+    const file = formData.get('bannerImage') as File | null;
 
     if (!file) {
       return NextResponse.json({ message: 'No image file provided.' }, { status: 400 });
     }
 
-    const localFilePath = file.path;
-    const uploadResult = await uploadOnCloudinary(localFilePath);
+    // Write file to a temporary location
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const tempDir = '/tmp';
+    // Ensure the temp directory exists
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    // Create a unique temporary file path
+    const tempFilePath = path.join(tempDir, `banner-${Date.now()}-${file.name}`);
+    await fs.writeFile(tempFilePath, buffer);
+
+    const uploadResult = await uploadOnCloudinary(tempFilePath);
 
     if (!uploadResult || !uploadResult.secure_url || !uploadResult.public_id) {
       throw new Error('Cloudinary upload failed.');
