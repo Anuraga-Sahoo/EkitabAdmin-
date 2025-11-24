@@ -157,6 +157,7 @@ export function QuestionEditor({
               setQuestionAiTags(tags);
             }}
             idSuffix={`q-${questionIndex}-${editorId}`}
+            initialImageUrl={questionImageUrl}
           />
           {questionImageUrl && <p className="text-xs text-muted-foreground">Image selected for question.</p>}
         </div>
@@ -217,6 +218,7 @@ export function QuestionEditor({
                   <ImageUploader
                     onImageUploaded={(dataUri, tags) => handleOptionImageUploaded(optIndex, dataUri, tags)}
                     idSuffix={`q-${questionIndex}-opt-${optIndex}-${editorId}`}
+                    initialImageUrl={option.imageUrl}
                   />
                    {option.imageUrl && <p className="text-xs text-muted-foreground">Image selected for option.</p>}
                 </div>
@@ -256,4 +258,3 @@ export function QuestionEditor({
     </Card>
   );
 }
-

@@ -14,14 +14,20 @@ import { useToast } from '@/hooks/use-toast';
 interface ImageUploaderProps {
   onImageUploaded: (dataUri: string, tags: string[]) => void;
   idSuffix: string; // To make IDs unique if multiple uploaders are on one page
+  initialImageUrl?: string;
 }
 
-export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps) {
+export function ImageUploader({ onImageUploaded, idSuffix, initialImageUrl }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(initialImageUrl || null);
   const [aiTags, setAiTags] = useState<string[]>([]);
   const [isTagging, setIsTagging] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setPreview(initialImageUrl || null);
+  }, [initialImageUrl]);
+
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -33,7 +39,7 @@ export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps)
         setPreview(result);
         setAiTags([]); // Reset tags for new image
         // Inform parent about the new image (without tags yet, or with empty tags)
-        onImageUploaded(result, []); 
+        onImageUploaded(result, []);
       };
       reader.readAsDataURL(selectedFile);
     } else {
@@ -121,5 +127,3 @@ export function ImageUploader({ onImageUploaded, idSuffix }: ImageUploaderProps)
     </div>
   );
 }
-
-    
