@@ -8,6 +8,23 @@ cloudinary.config({
 });
 
 /**
+ * Extracts the public ID from a Cloudinary URL.
+ * @param url The full Cloudinary URL.
+ * @returns The public ID (e.g., "folder/image_name").
+ */
+export const getPublicIdFromUrl = (url: string): string | null => {
+    try {
+        const regex = /v\d+\/(.+?)(?:\.\w+)?$/;
+        const match = url.match(regex);
+        return match ? match[1] : null;
+    } catch (error) {
+        console.error("Error extracting public ID from URL:", error);
+        return null;
+    }
+};
+
+
+/**
  * Uploads a file to Cloudinary. This function can handle both a local file path
  * and a base64 encoded data URI.
  * @param fileToUpload - The local file path or data URI of the file to upload.
@@ -18,17 +35,13 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
   try {
     if (!fileToUpload) return null;
 
-    // The fileToUpload can be a local path or a data URI.
-    // Cloudinary's uploader can handle both directly.
     const uploadResult = await cloudinary.uploader.upload(fileToUpload, {
       folder: folder,
       resource_type: "auto",
     });
 
-    // If the input was a local file path (and not a data URI), we should clean it up.
-    // This part is useful if other parts of the app upload from the filesystem.
-    if (!fileToUpload.startsWith('data:')) {
-      try {
+    if (fileToUpload && !fileToUpload.startsWith('data:') && fs.unlink) {
+       try {
         await fs.unlink(fileToUpload);
       } catch (unlinkError) {
         console.warn(`Failed to delete temporary file: ${fileToUpload}`, unlinkError);
@@ -39,7 +52,6 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
   } catch (error) {
     console.error('Cloudinary Upload Error:', error);
     
-    // Attempt to clean up local file even on failed upload
     if (fileToUpload && !fileToUpload.startsWith('data:')) {
       try {
         await fs.unlink(fileToUpload);
@@ -47,19 +59,41 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
         // Suppress unlink error after an upload failure to prioritize the upload error.
       }
     }
-    // We re-throw the error so the calling function knows the upload failed.
     throw new Error('Cloudinary upload failed.');
   }
 };
 
 
+/**
+ * Deletes a single image from Cloudinary.
+ * @param publicId The public ID of the image to delete.
+ * @returns The result of the deletion operation.
+ */
 export const deleteFromCloudinary = async (publicId: string) => {
   try {
     if (!publicId) return null;
     const result = await cloudinary.uploader.destroy(publicId);
+    console.log("Cloudinary delete result:", result);
     return result;
   } catch (error) {
     console.error("Cloudinary Delete Error:", error);
     throw new Error("Failed to delete image from Cloudinary");
   }
+};
+
+/**
+ * Deletes multiple images from Cloudinary.
+ * @param publicIds An array of public IDs of the images to delete.
+ * @returns The result of the deletion operation.
+ */
+export const deleteMultipleFromCloudinary = async (publicIds: string[]) => {
+    try {
+        if (!publicIds || publicIds.length === 0) return null;
+        const result = await cloudinary.api.delete_resources(publicIds);
+        console.log("Cloudinary multiple delete result:", result);
+        return result;
+    } catch (error) {
+        console.error("Cloudinary Multiple Delete Error:", error);
+        throw new Error("Failed to delete multiple images from Cloudinary");
+    }
 };

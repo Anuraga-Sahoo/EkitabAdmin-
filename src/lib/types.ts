@@ -4,6 +4,7 @@ export type Option = {
   id: string;
   text: string;
   imageUrl?: string;
+  publicId?: string; // Cloudinary public_id
   isCorrect: boolean;
   aiTags?: string[];
 };
@@ -12,6 +13,7 @@ export type Question = {
   id: string;
   text: string;
   imageUrl?: string;
+  publicId?: string; // Cloudinary public_id
   aiTags?: string[];
   options: Option[];
   explanation?: string;

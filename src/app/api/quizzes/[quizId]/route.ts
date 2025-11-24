@@ -2,8 +2,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import type { QuizStatus, Quiz, QuizFormData, Question, Section, Exam } from '@/lib/types';
-import { uploadOnCloudinary } from '@/lib/cloudinary';
+import type { QuizStatus, Quiz, QuizFormData, Question, Section, Exam, Option } from '@/lib/types';
+import { uploadOnCloudinary, deleteFromCloudinary } from '@/lib/cloudinary';
 
 // Helper to check if a string is a data URI
 const isDataURI = (uri: string) => uri.startsWith('data:image');
@@ -15,10 +15,8 @@ function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
 
   if (sections && Array.isArray(sections) && sections.length > 0) {
     finalSections = sections.map(s => ({
+      ...s,
       id: s.id || new ObjectId().toHexString(),
-      name: s.name,
-      questionLimit: s.questionLimit,
-      timerMinutes: s.timerMinutes,
       questions: (s.questions || []).map((q: any) => ({
         ...q,
         id: q.id || new ObjectId().toHexString(),
@@ -114,7 +112,7 @@ export async function PUT(
 
     const { quizzesCollection, examsCollection } = await connectToDatabase();
     
-    // Fetch current quiz to compare associatedExamId
+    // Fetch current quiz to handle image deletions and exam association changes
     const currentQuizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
     if (!currentQuizDoc) {
       return NextResponse.json({ message: 'Quiz not found for update.' }, { status: 404 });
@@ -138,7 +136,43 @@ export async function PUT(
     }
 
     // Handle full quiz update
-    const quizData = body as Omit<QuizFormData, 'questions'> & { sections: Array<Omit<Section, 'questions'> & { questions: Array<Omit<Question, 'options'> & { options: Array<OptionType> }> }> };
+    const quizData = body as QuizFormData;
+
+    // --- Image Deletion Logic ---
+    const oldPublicIdsToDelete: string[] = [];
+    const currentSections = currentQuizDoc.sections || [];
+    const newSections = quizData.sections || [];
+
+    // Create maps for easy lookup
+    const currentQuestionsMap = new Map<string, Question>();
+    currentSections.forEach(sec => sec.questions.forEach(q => q.id && currentQuestionsMap.set(q.id, q)));
+    
+    const currentOptionsMap = new Map<string, Option>();
+    currentSections.forEach(sec => sec.questions.forEach(q => q.options.forEach(opt => opt.id && currentOptionsMap.set(opt.id, opt))));
+
+    // Check for replaced/removed images
+    currentQuestionsMap.forEach((currentQ, qId) => {
+        const newQ = newSections.flatMap(s => s.questions).find(nq => nq.id === qId);
+        if (currentQ.publicId && (!newQ || newQ.imageUrl !== currentQ.imageUrl)) {
+            oldPublicIdsToDelete.push(currentQ.publicId);
+        }
+    });
+
+    currentOptionsMap.forEach((currentOpt, optId) => {
+        const newOpt = newSections.flatMap(s => s.questions).flatMap(q => q.options).find(no => no.id === optId);
+        if (currentOpt.publicId && (!newOpt || newOpt.imageUrl !== currentOpt.imageUrl)) {
+            oldPublicIdsToDelete.push(currentOpt.publicId);
+        }
+    });
+
+    if (oldPublicIdsToDelete.length > 0) {
+        // Asynchronously delete from Cloudinary
+        deleteMultipleFromCloudinary(oldPublicIdsToDelete).catch(err => {
+            console.error("Failed to delete old images from Cloudinary, but continuing with quiz update:", err);
+        });
+    }
+    // --- End Image Deletion Logic ---
+
 
     // Process image uploads
     for (const section of quizData.sections) {
@@ -147,6 +181,7 @@ export async function PUT(
           const uploadResult = await uploadOnCloudinary(question.imageUrl);
           if (uploadResult?.secure_url) {
             question.imageUrl = uploadResult.secure_url;
+            question.publicId = uploadResult.public_id;
           } else {
              throw new Error(`Failed to upload image for question: ${question.text.substring(0, 20)}...`);
           }
@@ -156,6 +191,7 @@ export async function PUT(
              const uploadResult = await uploadOnCloudinary(option.imageUrl);
              if (uploadResult?.secure_url) {
                 option.imageUrl = uploadResult.secure_url;
+                option.publicId = uploadResult.public_id;
              } else {
                 throw new Error(`Failed to upload image for an option in question: ${question.text.substring(0, 20)}...`);
              }
@@ -268,15 +304,34 @@ export async function DELETE(
 
     const { quizzesCollection, examsCollection } = await connectToDatabase();
     
-    // Before deleting quiz, remove its ID from any associated exam
+    // Before deleting quiz, find the document to get associated image public_ids
     const quizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
-    if (quizDoc && quizDoc.associatedExamId && ObjectId.isValid(quizDoc.associatedExamId)) {
-        await examsCollection.updateOne(
-            { _id: new ObjectId(quizDoc.associatedExamId) },
-            { $pull: { quizIds: quizId } }
-        );
+    if (quizDoc) {
+        const publicIdsToDelete: string[] = [];
+        quizDoc.sections?.forEach(section => {
+            section.questions.forEach(question => {
+                if (question.publicId) publicIdsToDelete.push(question.publicId);
+                question.options.forEach(option => {
+                    if (option.publicId) publicIdsToDelete.push(option.publicId);
+                });
+            });
+        });
+
+        if(publicIdsToDelete.length > 0){
+            // Asynchronously delete images from Cloudinary
+            deleteMultipleFromCloudinary(publicIdsToDelete).catch(err => {
+                 console.error("Failed to delete images from Cloudinary on quiz deletion:", err);
+            });
+        }
+        
+        // Remove quiz ID from any associated exam
+        if (quizDoc.associatedExamId && ObjectId.isValid(quizDoc.associatedExamId)) {
+            await examsCollection.updateOne(
+                { _id: new ObjectId(quizDoc.associatedExamId) },
+                { $pull: { quizIds: quizId } }
+            );
+        }
     }
-    // Note: Similar logic could be added for chapters, classes, subjects if quizIds are stored there and need cleanup.
 
     const result = await quizzesCollection.deleteOne({ _id: new ObjectId(quizId) });
 
