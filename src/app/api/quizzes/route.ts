@@ -4,6 +4,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import type { QuizFormData, Quiz, Question, Section, ChapterItem, ClassItem, SubjectItem, Exam } from '@/lib/types';
 import { ObjectId } from 'mongodb';
+import { uploadDataUriToCloudinary } from '@/lib/cloudinary';
+
+// Helper to check if a string is a data URI
+const isDataURI = (uri: string) => uri.startsWith('data:image');
 
 // Helper to adapt old quiz structure (direct questions array) to new sections structure
 function adaptQuizToSectionsFormat(quizDoc: any): Omit<Quiz, '_id'> {
@@ -67,6 +71,31 @@ export async function POST(request: NextRequest) {
     if (quizData.timerMinutes !== undefined && (typeof quizData.timerMinutes !== 'number' || quizData.timerMinutes < 0)) {
       return NextResponse.json({ message: 'Invalid overall timer value provided.' }, { status: 400 });
     }
+
+    // Process image uploads
+    for (const section of quizData.sections) {
+      for (const question of section.questions) {
+        if (question.imageUrl && isDataURI(question.imageUrl)) {
+          const uploadResult = await uploadDataUriToCloudinary(question.imageUrl);
+          if (uploadResult?.secure_url) {
+            question.imageUrl = uploadResult.secure_url;
+          } else {
+             throw new Error(`Failed to upload image for question: ${question.text.substring(0, 20)}...`);
+          }
+        }
+        for (const option of question.options) {
+          if (option.imageUrl && isDataURI(option.imageUrl)) {
+             const uploadResult = await uploadDataUriToCloudinary(option.imageUrl);
+             if (uploadResult?.secure_url) {
+                option.imageUrl = uploadResult.secure_url;
+             } else {
+                throw new Error(`Failed to upload image for an option in question: ${question.text.substring(0, 20)}...`);
+             }
+          }
+        }
+      }
+    }
+
 
     const processedSections = quizData.sections.map(section => {
       if (section.timerMinutes !== undefined && (typeof section.timerMinutes !== 'number' || section.timerMinutes < 0)) {
