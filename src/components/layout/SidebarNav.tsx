@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, UploadCloud, ListChecks, Settings, Users, FilePlus2, School, BookText, Bookmark, Megaphone } from 'lucide-react'; 
+import { LayoutDashboard, UploadCloud, ListChecks, Settings, Users, FilePlus2, School, BookText, Bookmark, Megaphone, Image as ImageIcon } from 'lucide-react'; 
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/subjects', label: 'Manage Subjects', icon: BookText },
   { href: '/chapters', label: 'Manage Chapters', icon: Bookmark },
   { href: '/users', label: 'Users', icon: Users },
+  { href: '/banners', label: 'Banners', icon: ImageIcon },
   { href: '/notifications/create', label: 'Manage Notifications', icon: Megaphone },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -41,4 +42,3 @@ export function SidebarNav() {
     </SidebarMenu>
   );
 }
-

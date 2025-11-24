@@ -1,7 +1,7 @@
 
 // src/lib/mongodb.ts
 import { MongoClient, Db, Collection } from 'mongodb';
-import type { Quiz, User, Exam, ClassItem, SubjectItem, ChapterItem, NotificationItem } from './types';
+import type { Quiz, User, Exam, ClassItem, SubjectItem, ChapterItem, NotificationItem, Banner } from './types';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'database'; // Default to 'database' if not set
@@ -42,6 +42,7 @@ interface DatabaseCollections {
   subjectsCollection: Collection<Omit<SubjectItem, '_id'>>;
   chaptersCollection: Collection<Omit<ChapterItem, '_id'>>;
   notificationsCollection: Collection<Omit<NotificationItem, '_id'>>;
+  bannersCollection: Collection<Omit<Banner, '_id'>>;
 }
 
 export async function connectToDatabase(): Promise<DatabaseCollections> {
@@ -56,6 +57,7 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
       subjectsCollection: cachedDb.collection<Omit<SubjectItem, '_id'>>('subjects'),
       chaptersCollection: cachedDb.collection<Omit<ChapterItem, '_id'>>('chapters'),
       notificationsCollection: cachedDb.collection<Omit<NotificationItem, '_id'>>('notifications'),
+      bannersCollection: cachedDb.collection<Omit<Banner, '_id'>>('banners'),
     };
   }
 
@@ -78,6 +80,7 @@ export async function connectToDatabase(): Promise<DatabaseCollections> {
   const subjectsCollection = db.collection<Omit<SubjectItem, '_id'>>('subjects');
   const chaptersCollection = db.collection<Omit<ChapterItem, '_id'>>('chapters');
   const notificationsCollection = db.collection<Omit<NotificationItem, '_id'>>('notifications');
+  const bannersCollection = db.collection<Omit<Banner, '_id'>>('banners');
 
-  return { client, db, quizzesCollection, usersCollection, examsCollection, classesCollection, subjectsCollection, chaptersCollection, notificationsCollection };
+  return { client, db, quizzesCollection, usersCollection, examsCollection, classesCollection, subjectsCollection, chaptersCollection, notificationsCollection, bannersCollection };
 }

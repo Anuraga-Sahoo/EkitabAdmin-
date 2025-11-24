@@ -1,4 +1,5 @@
 
+
 export type Option = {
   id: string;
   text: string;
@@ -111,4 +112,11 @@ export type NotificationItem = {
   userIds: string[]; // Array of user IDs the notification is for
   isRead: { userId: string; read: boolean }[]; // Tracks read status for each user
   // Add other fields like targetAudience, status if needed later
+};
+
+export type Banner = {
+  _id: string;
+  imageUrl: string;
+  publicId: string; // Cloudinary public_id for deletion
+  createdAt: Date;
 };
