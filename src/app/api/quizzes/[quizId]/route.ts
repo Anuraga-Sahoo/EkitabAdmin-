@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import type { QuizStatus, Quiz, QuizFormData, Question, Section, Exam, Option } from '@/lib/types';
-import { uploadOnCloudinary, deleteFromCloudinary } from '@/lib/cloudinary';
+import { uploadOnCloudinary, deleteMultipleFromCloudinary } from '@/lib/cloudinary';
 
 // Helper to check if a string is a data URI
 const isDataURI = (uri: string) => uri.startsWith('data:image');
@@ -139,35 +139,33 @@ export async function PUT(
     const quizData = body as QuizFormData;
 
     // --- Image Deletion Logic ---
-    const oldPublicIdsToDelete: string[] = [];
-    const currentSections = currentQuizDoc.sections || [];
-    const newSections = quizData.sections || [];
-
-    // Create maps for easy lookup
-    const currentQuestionsMap = new Map<string, Question>();
-    currentSections.forEach(sec => sec.questions.forEach(q => q.id && currentQuestionsMap.set(q.id, q)));
+    const publicIdsToDelete: string[] = [];
+    const currentImagesMap = new Map<string, string>(); // Map of publicId -> 'exists'
     
-    const currentOptionsMap = new Map<string, Option>();
-    currentSections.forEach(sec => sec.questions.forEach(q => q.options.forEach(opt => opt.id && currentOptionsMap.set(opt.id, opt))));
-
-    // Check for replaced/removed images
-    currentQuestionsMap.forEach((currentQ, qId) => {
-        const newQ = newSections.flatMap(s => s.questions).find(nq => nq.id === qId);
-        if (currentQ.publicId && (!newQ || newQ.imageUrl !== currentQ.imageUrl)) {
-            oldPublicIdsToDelete.push(currentQ.publicId);
-        }
+    (currentQuizDoc.sections || []).forEach(sec => {
+        (sec.questions || []).forEach(q => {
+            if (q.publicId) currentImagesMap.set(q.publicId, 'exists');
+            (q.options || []).forEach(opt => {
+                if (opt.publicId) currentImagesMap.set(opt.publicId, 'exists');
+            });
+        });
     });
 
-    currentOptionsMap.forEach((currentOpt, optId) => {
-        const newOpt = newSections.flatMap(s => s.questions).flatMap(q => q.options).find(no => no.id === optId);
-        if (currentOpt.publicId && (!newOpt || newOpt.imageUrl !== currentOpt.imageUrl)) {
-            oldPublicIdsToDelete.push(currentOpt.publicId);
-        }
+    (quizData.sections || []).forEach(sec => {
+        (sec.questions || []).forEach(q => {
+            if (q.publicId) currentImagesMap.delete(q.publicId);
+            (q.options || []).forEach(opt => {
+                if (opt.publicId) currentImagesMap.delete(opt.publicId);
+            });
+        });
+    });
+    
+    currentImagesMap.forEach((_, publicId) => {
+        publicIdsToDelete.push(publicId);
     });
 
-    if (oldPublicIdsToDelete.length > 0) {
-        // Asynchronously delete from Cloudinary
-        deleteMultipleFromCloudinary(oldPublicIdsToDelete).catch(err => {
+    if (publicIdsToDelete.length > 0) {
+        deleteMultipleFromCloudinary(publicIdsToDelete).catch(err => {
             console.error("Failed to delete old images from Cloudinary, but continuing with quiz update:", err);
         });
     }
@@ -308,10 +306,10 @@ export async function DELETE(
     const quizDoc = await quizzesCollection.findOne({ _id: new ObjectId(quizId) });
     if (quizDoc) {
         const publicIdsToDelete: string[] = [];
-        quizDoc.sections?.forEach(section => {
-            section.questions.forEach(question => {
+        (quizDoc.sections || []).forEach(section => {
+            (section.questions || []).forEach(question => {
                 if (question.publicId) publicIdsToDelete.push(question.publicId);
-                question.options.forEach(option => {
+                (question.options || []).forEach(option => {
                     if (option.publicId) publicIdsToDelete.push(option.publicId);
                 });
             });

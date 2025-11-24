@@ -1,3 +1,4 @@
+
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs/promises';
 
@@ -40,10 +41,12 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
       resource_type: "auto",
     });
 
+    // If it was a local file path (not a data URI), try to delete it
     if (fileToUpload && !fileToUpload.startsWith('data:') && fs.unlink) {
        try {
         await fs.unlink(fileToUpload);
       } catch (unlinkError) {
+        // Log the warning but don't fail the upload because of it
         console.warn(`Failed to delete temporary file: ${fileToUpload}`, unlinkError);
       }
     }
@@ -52,6 +55,7 @@ export const uploadOnCloudinary = async (fileToUpload: string, folder: string = 
   } catch (error) {
     console.error('Cloudinary Upload Error:', error);
     
+    // Attempt to clean up temp file even on failure
     if (fileToUpload && !fileToUpload.startsWith('data:')) {
       try {
         await fs.unlink(fileToUpload);
